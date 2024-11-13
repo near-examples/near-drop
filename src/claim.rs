@@ -4,9 +4,9 @@ use crate::drop_types::Dropper;
 use crate::{Contract, ContractExt};
 
 use near_sdk::serde_json::json;
-use near_sdk::{env, near_bindgen, AccountId, GasWeight, Promise, PromiseError};
+use near_sdk::{env, near, AccountId, GasWeight, Promise, PromiseError};
 
-#[near_bindgen]
+#[near]
 impl Contract {
     #[private]
     pub fn claim_for(&mut self, account_id: AccountId) -> Promise {
@@ -57,8 +57,9 @@ impl Contract {
     ) -> Promise {
         // The first step of creating an account has finished
 
+        println!("created: {:?}", created);
         if created.is_err() || !created.unwrap() {
-            // refund the creator?
+            // refund the creator?x
         }
 
         // Creating the account was successful, we can continue with the claim

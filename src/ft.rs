@@ -1,8 +1,7 @@
-use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
-    env, near_bindgen, AccountId, GasWeight, Promise, PromiseError, PromiseOrValue, PublicKey,
+    env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue, PublicKey,
 };
 
 use crate::constants::*;
@@ -10,25 +9,25 @@ use crate::drop_types::Dropper;
 use crate::DropType;
 use crate::{Contract, ContractExt};
 
-const FT_STORAGE: u128 = (ACC_STORAGE * 2 + 128) * env::STORAGE_PRICE_PER_BYTE;
-const FT_REGISTER: u128 = 12500000000000000000000;
+const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq)]
+#[derive(PartialEq)]
+#[near(serializers = [borsh])]
 pub struct FTDrop {
     funder: AccountId,
-    tokens: u128,
+    amount: u128,
     ft_contract: AccountId,
 }
 
 impl Dropper for FTDrop {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
-        assert!(self.tokens > 0, "No tokens to drop");
+        assert!(self.amount > 0, "No tokens to drop");
 
         let deposit_args = json!({ "account_id": account_id })
             .to_string()
             .into_bytes()
             .to_vec();
-        let transfer_args = json!({"receiver_id": account_id, "amount": U128(self.tokens)})
+        let transfer_args = json!({"receiver_id": account_id, "amount": U128(self.amount)})
             .to_string()
             .into_bytes()
             .to_vec();
@@ -44,7 +43,7 @@ impl Dropper for FTDrop {
             .function_call_weight(
                 "ft_transfer".to_string(),
                 transfer_args,
-                1,
+                NearToken::from_yoctonear(1),
                 MIN_GAS_FOR_FT_TRANSFER,
                 GasWeight(0),
             )
@@ -57,53 +56,60 @@ impl Dropper for FTDrop {
             .resolve_ft_claim(
                 created,
                 self.funder.clone(),
-                self.tokens,
+                self.amount,
                 self.ft_contract.clone(),
             )
     }
 }
 
+fn ft_storage() -> NearToken {
+    env::storage_byte_cost().saturating_mul(ACC_STORAGE * 2 + 128)
+}
+
 pub fn create_ft_drop(funder: AccountId, ft_contract: AccountId) -> DropType {
     let attached = env::attached_deposit();
-    let required = CREATE_ACCOUNT_FEE + ACCESS_KEY_ALLOWANCE + ACCESS_KEY_STORAGE + FT_STORAGE;
+    let required = ft_storage()
+        .saturating_add(ACCESS_KEY_ALLOWANCE)
+        .saturating_add(ACCESS_KEY_STORAGE)
+        .saturating_add(CREATE_ACCOUNT_FEE);
 
     assert!(attached == required, "Please attach exactly {required} yN");
 
     DropType::FT(FTDrop {
         funder,
         ft_contract,
-        tokens: 0,
+        amount: 0,
     })
 }
 
-#[near_bindgen]
+#[near]
 impl Contract {
     // Fund an existing drop
     pub fn ft_on_transfer(
         &mut self,
-        sender_id: AccountId,
-        amount: U128,
+        _sender_id: AccountId,
+        _amount: NearToken,
         msg: PublicKey,
     ) -> PromiseOrValue<U128> {
         // Make sure the drop exists
         if let DropType::FT(FTDrop {
             funder,
             ft_contract,
-            tokens,
+            amount,
         }) = self.drop_for_key.get(&msg).expect("Missing Key")
         {
             assert!(
-                ft_contract == env::predecessor_account_id(),
+                ft_contract == &env::predecessor_account_id(),
                 "Wrong FTs, expected {ft_contract}"
             );
 
             // Update and insert again
             self.drop_for_key.insert(
-                &msg,
-                &DropType::FT(FTDrop {
-                    funder,
-                    ft_contract,
-                    tokens: tokens + amount.0,
+                msg,
+                DropType::FT(FTDrop {
+                    funder: funder.clone(),
+                    ft_contract: ft_contract.clone(),
+                    amount: amount.saturating_add(*amount),
                 }),
             )
         } else {
@@ -121,10 +127,10 @@ impl Contract {
         ft_contract: AccountId,
         #[callback_result] result: Result<(), PromiseError>,
     ) -> bool {
-        let mut to_refund = ACCESS_KEY_STORAGE + FT_STORAGE;
+        let mut to_refund = ft_storage().saturating_add(ACCESS_KEY_STORAGE);
 
         if !created {
-            to_refund += CREATE_ACCOUNT_FEE;
+            to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
         }
 
         if result.is_err() {
@@ -137,7 +143,7 @@ impl Contract {
             Promise::new(ft_contract).function_call_weight(
                 "ft_transfer".to_string(),
                 transfer_args,
-                1,
+                NearToken::from_yoctonear(1),
                 MIN_GAS_FOR_FT_TRANSFER,
                 GasWeight(0),
             );
