@@ -9,8 +9,8 @@ use near_sdk::{
 mod claim;
 mod constants;
 mod drop_types;
-mod ft;
-mod token;
+mod ft_drop;
+mod near_drop;
 
 #[derive(BorshStorageKey)]
 #[near]
@@ -39,14 +39,14 @@ impl Contract {
     #[payable]
     pub fn create_near_drop(&mut self, public_key: PublicKey, amount: U128) -> Promise {
         let funder = env::predecessor_account_id();
-        let drop = token::create_near_drop(funder, NearToken::from_yoctonear(amount.0));
+        let drop = near_drop::create(funder, NearToken::from_yoctonear(amount.0));
         self.save_drop_and_key(public_key, drop)
     }
 
     #[payable]
     pub fn create_ft_drop(&mut self, public_key: PublicKey, ft_contract: AccountId) -> Promise {
         let funder = env::predecessor_account_id();
-        let drop = ft::create_ft_drop(funder, ft_contract);
+        let drop = ft_drop::create(funder, ft_contract);
         self.save_drop_and_key(public_key, drop)
     }
 

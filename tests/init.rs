@@ -8,6 +8,9 @@ pub async fn init(
     let wasm = near_workspaces::compile_project(".").await?;
     let contract = worker.dev_deploy(&wasm).await?;
 
+    let root_contract =  near_workspaces::compile_project("./tests/contracts/root").await?;
+    let _ = root.deploy(&root_contract).await?;
+
     let creator = root
         .create_subaccount("creator")
         .initial_balance(NearToken::from_near(2))

@@ -66,7 +66,7 @@ fn ft_storage() -> NearToken {
     env::storage_byte_cost().saturating_mul(ACC_STORAGE * 2 + 128)
 }
 
-pub fn create_ft_drop(funder: AccountId, ft_contract: AccountId) -> DropType {
+pub fn create(funder: AccountId, ft_contract: AccountId) -> DropType {
     let attached = env::attached_deposit();
     let required = ft_storage()
         .saturating_add(ACCESS_KEY_ALLOWANCE)

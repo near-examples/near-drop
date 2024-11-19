@@ -29,7 +29,7 @@ fn basic_storage() -> NearToken {
     env::storage_byte_cost().saturating_mul(PK_STORAGE + ACC_STORAGE + 128)
 }
 
-pub fn create_near_drop(funder: AccountId, amount: NearToken) -> DropType {
+pub fn create(funder: AccountId, amount: NearToken) -> DropType {
     assert!(
         amount.ge(&NearToken::from_yoctonear(1)),
         "Give at least 1 yN"
