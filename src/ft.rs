@@ -73,7 +73,12 @@ pub fn create_ft_drop(funder: AccountId, ft_contract: AccountId) -> DropType {
         .saturating_add(ACCESS_KEY_STORAGE)
         .saturating_add(CREATE_ACCOUNT_FEE);
 
-    assert!(attached == required, "Please attach exactly {required} yN");
+    assert!(
+        attached.ge(&required),
+        "Please attach exactly {required}. You attached {attached}"
+    );
+
+    // TODO: Add refund
 
     DropType::FT(FTDrop {
         funder,
