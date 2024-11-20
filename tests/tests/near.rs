@@ -34,7 +34,8 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     assert!(create_result.is_success());
 
     // instantiate a new version of the contract, using the secret key
-    let claimer: Account = Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
+    let claimer: Account =
+        Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
 
     // Contract calls the "claim_for" function to claim the drop for Alice's account
     let claim_result = claimer
@@ -75,7 +76,6 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
 async fn drop_on_new_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
-    println!("root account: {:?}", root);
 
     let (contract, creator, alice) = init(&worker, &root).await?;
 
@@ -99,7 +99,8 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     assert!(create_result.is_success());
 
     // instantiate a new version of the contract, using the secret key
-    let claimer: Account = Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
+    let claimer: Account =
+        Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
 
     let long_account_id: AccountId =
         "a12345678901234567890123456789012345678901234567890123.test.near"
@@ -113,7 +114,6 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
-    println!("claim_result: {:?}", claim_result);
     assert!(claim_result.is_success());
 
     // Get balances after claiming the drop

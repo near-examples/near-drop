@@ -14,13 +14,6 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let (mut contract, creator, alice) = init(&worker, &root).await?;
     let ft_contract = init_ft_contract(&worker, &creator).await?;
 
-    // Get balances before creating/claiming a drop
-    // let alice_balance_before = get_user_balance(&alice).await;
-    // let contract_balance_before = get_user_balance(contract.as_account()).await;
-
-    // // Define the drop amount to be 1 NearToken
-    // let drop_amount = NearToken::from_near(1);
-
     // Retrieve the secret key for Alice's account
     let secret_key = alice.secret_key();
 

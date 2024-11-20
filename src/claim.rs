@@ -53,13 +53,12 @@ impl Contract {
     pub fn resolve_account_create(
         &mut self,
         account_id: AccountId,
-        #[callback_result] created: Result<bool, PromiseError>,
+        #[callback_result] created: Result<(), PromiseError>,
     ) -> Promise {
         // The first step of creating an account has finished
 
-        println!("created: {:?}", created);
-        if created.is_err() || !created.unwrap() {
-            // refund the creator?x
+        if let Err(_) = created {
+            panic!("Creating account failed")
         }
 
         // Creating the account was successful, we can continue with the claim

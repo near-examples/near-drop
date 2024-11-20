@@ -1,5 +1,5 @@
 // Find all our documentation at https://docs.near.org
-use near_sdk::{near, AccountId, Promise, PublicKey};
+use near_sdk::{env, log, near, AccountId, Promise, PromiseError, PublicKey};
 
 // Define the contract structure
 #[near(contract_state)]
@@ -20,21 +20,16 @@ impl Contract {
         Promise::new(new_account_id)
             .create_account()
             .add_full_access_key(new_public_key)
-            .then(
-                Self::ext_self(env::current_account_id())
-                    .create_account_callback()
-            )
+            .then(Self::ext(env::current_account_id()).create_account_callback());
     }
 
-    pub fn create_account_callback(&self, #[callback_result] created: Result<(), PromiseError>) -> bool {
-        match created {
-            Ok(_) => {
-                true
-            }
-            Err(e) => {
-                false
-            }
+    #[private]
+    pub fn create_account_callback(&self, #[callback_result] created: Result<(), PromiseError>) {
+        println!("callback_result: {:?}", created);
+        if let Ok(_) = created {
+            log!("create_account call successed");
+        } else {
+            log!("create_account call failed");
         }
-        
     }
 }
