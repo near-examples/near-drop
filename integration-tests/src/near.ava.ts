@@ -49,7 +49,7 @@ test('drop on an existing account', async (t) => {
   const aliceBalance = await alice.availableBalance()
 
   // Create a public key and add as a drop key 
-  const pkDrop = await alice.getKey();
+  const pkDrop = await alice.getKey()!;
 
   await creator.call(
     contract, "create_near_drop",
