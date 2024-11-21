@@ -48,7 +48,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
-    println!("ft_transfer_res: {:?}\n", ft_transfer_res);
+    println!("ft_transfer_res: {:#?}\n", ft_transfer_res);
     assert!(ft_transfer_res.is_success());
 
     let creator_ft_balance = ft_contract

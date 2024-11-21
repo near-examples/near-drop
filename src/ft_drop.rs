@@ -92,8 +92,8 @@ impl Contract {
     // Fund an existing drop
     pub fn ft_on_transfer(
         &mut self,
-        _sender_id: AccountId,
-        _amount: NearToken,
+        sender_id: AccountId,
+        amount: NearToken,
         msg: PublicKey,
     ) -> PromiseOrValue<U128> {
         // Make sure the drop exists
