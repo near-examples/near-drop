@@ -1,21 +1,21 @@
-// use near_sdk::AccountId;
 use near_sdk::{json_types::U128, serde_json::json, NearToken};
-// use near_workspaces::types::{KeyType, SecretKey};
-// use near_workspaces::Account;
+use near_workspaces::{
+    types::{KeyType, SecretKey},
+    Account,
+};
 
 use crate::init::{init, init_ft_contract};
-// use crate::utils::get_user_balance;
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (mut contract, creator, alice) = init(&worker, &root).await?;
+    let (contract, creator, alice) = init(&worker, &root).await?;
     let ft_contract = init_ft_contract(&worker, &creator).await?;
 
-    // Retrieve the secret key for Alice's account
-    let secret_key = alice.secret_key();
+    // Generate the secret key
+    let secret_key = SecretKey::from_random(KeyType::ED25519);
 
     // Creator initiates a call to create a NEAR drop
     let create_result = creator
@@ -37,45 +37,36 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     assert!(storage_deposit_res.is_success());
 
     let args = json!({"receiver_id": contract.id(), "amount": "1", "msg": secret_key.public_key()});
-    println!("args: {:?}\n", args);
+    let ft_drop_amount = NearToken::from_yoctonear(1);
 
     let ft_transfer_res = creator
         .call(ft_contract.id(), "ft_transfer_call")
-        .args_json(
-            json!({"receiver_id": contract.id(), "amount": "1", "msg": secret_key.public_key()}),
-        )
-        .deposit(NearToken::from_yoctonear(1))
+        .args_json(args)
+        .deposit(ft_drop_amount)
         .max_gas()
         .transact()
         .await?;
-    println!("ft_transfer_res: {:#?}\n", ft_transfer_res);
     assert!(ft_transfer_res.is_success());
 
-    let creator_ft_balance = ft_contract
-        .call("ft_balance_of")
-        .args_json((creator.id(),))
-        .view()
-        .await?
-        .json::<U128>()?;
-    println!("creator_ft_balance: {:?}\n", creator_ft_balance);
+    // instantiate a new version of the contract, using the secret key
+    let claimer: Account =
+        Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
 
-    let contract_ft_balance = ft_contract
-        .call("ft_balance_of")
-        .args_json((contract.id(),))
-        .view()
-        .await?
-        .json::<U128>()?;
-    println!("contract_ft_balance: {:?}\n", contract_ft_balance);
-
-    contract.as_account_mut().set_secret_key(secret_key.clone());
-
-    let claim_result = contract
-        .call("claim_for")
+    let claim_result = claimer
+        .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
         .max_gas()
         .transact()
         .await?;
-    println!("claim_result: {:?}", claim_result);
     assert!(claim_result.is_success());
+
+    let alice_ft_balance = ft_contract
+        .call("ft_balance_of")
+        .args_json((alice.id(),))
+        .view()
+        .await?
+        .json::<U128>()?;
+    assert!(alice_ft_balance == U128(ft_drop_amount.as_yoctonear()));
+
     Ok(())
 }
