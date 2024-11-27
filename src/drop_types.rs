@@ -1,10 +1,10 @@
-use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{AccountId, Promise};
+use near_sdk::{near, AccountId, Promise};
 
-use crate::ft::FTDrop;
-use crate::token::TokenDrop;
+use crate::ft_drop::FTDrop;
+use crate::near_drop::TokenDrop;
 
-#[derive(BorshSerialize, BorshDeserialize, PartialEq)]
+#[derive(PartialEq)]
+#[near(serializers = [borsh])]
 pub enum DropType {
     NEAR(TokenDrop),
     FT(FTDrop),
