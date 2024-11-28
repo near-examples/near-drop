@@ -1,9 +1,7 @@
 use near_contract_standards::non_fungible_token::TokenId;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_sdk::{
-    env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
-};
+use near_sdk::{env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue};
 
 use crate::constants::*;
 use crate::drop_types::Dropper;
