@@ -124,8 +124,8 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     assert_eq!(long_account_balance, drop_amount);
 
     // Try to claim the drop again and check it fails
-    let claim_result = contract
-        .call("claim_for")
+    let claim_result = claimer
+        .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
         .max_gas()
         .transact()
