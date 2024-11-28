@@ -2,12 +2,14 @@ use near_sdk::{near, AccountId, Promise};
 
 use crate::ft_drop::FTDrop;
 use crate::near_drop::TokenDrop;
+use crate::nft_drop::NFTDrop;
 
 #[derive(PartialEq)]
 #[near(serializers = [borsh])]
 pub enum DropType {
     NEAR(TokenDrop),
     FT(FTDrop),
+    NFT(NFTDrop),
 }
 
 pub trait Dropper {
@@ -20,6 +22,7 @@ impl Dropper for DropType {
         match self {
             DropType::NEAR(tkdrop) => tkdrop.promise_for_claiming(account_id),
             DropType::FT(ftdrop) => ftdrop.promise_for_claiming(account_id),
+            DropType::NFT(nftdrop) => nftdrop.promise_for_claiming(account_id),
         }
     }
 
@@ -27,6 +30,7 @@ impl Dropper for DropType {
         match self {
             DropType::NEAR(tk_drop) => tk_drop.promise_to_resolve_claim(created),
             DropType::FT(ft_drop) => ft_drop.promise_to_resolve_claim(created),
+            DropType::NFT(nftdrop) => nftdrop.promise_to_resolve_claim(created),
         }
     }
 }

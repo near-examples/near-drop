@@ -25,7 +25,6 @@ impl Contract {
 
     #[private]
     pub fn create_account_callback(&self, #[callback_result] created: Result<(), PromiseError>) {
-        println!("callback_result: {:?}", created);
         if let Ok(_) = created {
             log!("create_account call successed");
         } else {

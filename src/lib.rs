@@ -11,6 +11,7 @@ mod constants;
 mod drop_types;
 mod ft_drop;
 mod near_drop;
+mod nft_drop;
 
 #[derive(BorshStorageKey)]
 #[near]
@@ -47,6 +48,13 @@ impl Contract {
     pub fn create_ft_drop(&mut self, public_key: PublicKey, ft_contract: AccountId) -> Promise {
         let funder = env::predecessor_account_id();
         let drop = ft_drop::create(funder, ft_contract);
+        self.save_drop_and_key(public_key, drop)
+    }
+
+    #[payable]
+    pub fn create_nft_drop(&mut self, public_key: PublicKey, nft_contract: AccountId) -> Promise {
+        let funder = env::predecessor_account_id();
+        let drop = nft_drop::create(funder, nft_contract);
         self.save_drop_and_key(public_key, drop)
     }
 

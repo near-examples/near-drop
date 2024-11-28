@@ -27,6 +27,10 @@ pub const CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(5); // 5 TGas
 pub const GAS_FOR_CREATE_ACCOUNT: Gas = Gas::from_tgas(28); // 28 TGas
 
 // FT
-pub const MIN_GAS_FOR_STORAGE_DEPOSIT: Gas = Gas::from_tgas(5); // 5 TGas
+pub const MIN_GAS_FOR_FT_STORAGE_DEPOSIT: Gas = Gas::from_tgas(5); // 5 TGas
 pub const MIN_GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5); // 5 TGas
-pub const FT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 5 TGas
+pub const FT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas
+
+// NFT
+pub const MIN_GAS_FOR_NFT_TRANSFER: Gas = Gas::from_tgas(5); // 5 TGas
+pub const NFT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas

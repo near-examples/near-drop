@@ -1,8 +1,6 @@
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_sdk::{
-    env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
-};
+use near_sdk::{env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue};
 
 use crate::constants::*;
 use crate::drop_types::Dropper;
@@ -11,7 +9,7 @@ use crate::{Contract, ContractExt};
 
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq)]
 #[near(serializers = [borsh])]
 pub struct FTDrop {
     funder: AccountId,
@@ -21,7 +19,6 @@ pub struct FTDrop {
 
 impl Dropper for FTDrop {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
-        log!("self: {:?}", self);
         assert!(
             self.amount.gt(&NearToken::from_yoctonear(0)),
             "No tokens to drop"
@@ -42,7 +39,7 @@ impl Dropper for FTDrop {
                 "storage_deposit".to_string(),
                 deposit_args,
                 FT_REGISTER,
-                MIN_GAS_FOR_STORAGE_DEPOSIT,
+                MIN_GAS_FOR_FT_STORAGE_DEPOSIT,
                 GasWeight(0),
             )
             .function_call_weight(
@@ -115,8 +112,6 @@ impl Contract {
                 ft_contract == &env::predecessor_account_id(),
                 "Wrong FTs, expected {ft_contract}"
             );
-
-            log!("amount on insert: {:?}", *amount);
 
             // Update and insert again
             self.drop_for_key.insert(
