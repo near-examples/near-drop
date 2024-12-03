@@ -1,7 +1,9 @@
 use near_contract_standards::non_fungible_token::TokenId;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_sdk::{env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue};
+use near_sdk::{
+    env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
+};
 
 use crate::constants::*;
 use crate::drop_types::Dropper;
@@ -47,13 +49,13 @@ impl Dropper for NFTDrop {
     }
 }
 
-fn ft_storage() -> NearToken {
+fn nft_storage() -> NearToken {
     env::storage_byte_cost().saturating_mul(ACC_STORAGE * 2 + 128)
 }
 
 pub fn create(funder: AccountId, nft_contract: AccountId) -> DropType {
     let attached = env::attached_deposit();
-    let required = ft_storage()
+    let required = nft_storage()
         .saturating_add(ACCESS_KEY_ALLOWANCE)
         .saturating_add(ACCESS_KEY_STORAGE)
         .saturating_add(CREATE_ACCOUNT_FEE);
@@ -121,26 +123,17 @@ impl Contract {
         nft_contract: AccountId,
         #[callback_result] result: Result<(), PromiseError>,
     ) -> bool {
-        let mut to_refund = ft_storage().saturating_add(ACCESS_KEY_STORAGE);
+        let mut to_refund = nft_storage().saturating_add(ACCESS_KEY_STORAGE);
 
         if !created {
             to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
         }
 
         if result.is_err() {
-            // Return Tokens
-            let transfer_args = json!({"receiver_id": funder, "token_id": token_id})
-                .to_string()
-                .into_bytes()
-                .to_vec();
-
-            Promise::new(nft_contract).function_call_weight(
-                "nft_transfer".to_string(),
-                transfer_args,
-                NearToken::from_yoctonear(1),
-                MIN_GAS_FOR_FT_TRANSFER,
-                GasWeight(0),
-            );
+            log!(
+                "There is error during claiming the drop: {:?}",
+                result.err().unwrap()
+            )
         }
 
         // Return NEAR
