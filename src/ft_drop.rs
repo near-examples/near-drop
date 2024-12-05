@@ -4,6 +4,7 @@ use near_sdk::{env, near, AccountId, GasWeight, NearToken, Promise, PromiseError
 
 use crate::constants::*;
 use crate::drop_types::Dropper;
+use crate::storage::basic_storage;
 use crate::DropType;
 use crate::{Contract, ContractExt};
 
@@ -64,13 +65,9 @@ impl Dropper for FTDrop {
     }
 }
 
-fn ft_storage() -> NearToken {
-    env::storage_byte_cost().saturating_mul(ACC_STORAGE * 2 + 128)
-}
-
 pub fn create(funder: AccountId, ft_contract: AccountId) -> DropType {
     let attached = env::attached_deposit();
-    let required = ft_storage()
+    let required = basic_storage()
         .saturating_add(ACCESS_KEY_ALLOWANCE)
         .saturating_add(ACCESS_KEY_STORAGE)
         .saturating_add(CREATE_ACCOUNT_FEE);
@@ -137,7 +134,7 @@ impl Contract {
         ft_contract: AccountId,
         #[callback_result] result: Result<(), PromiseError>,
     ) -> bool {
-        let mut to_refund = ft_storage().saturating_add(ACCESS_KEY_STORAGE);
+        let mut to_refund = basic_storage().saturating_add(ACCESS_KEY_STORAGE);
 
         if !created {
             to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);

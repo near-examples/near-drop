@@ -12,6 +12,7 @@ mod drop_types;
 mod ft_drop;
 mod near_drop;
 mod nft_drop;
+mod storage;
 
 #[derive(BorshStorageKey)]
 #[near]

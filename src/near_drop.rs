@@ -2,6 +2,7 @@ use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 use crate::constants::*;
 use crate::drop_types::Dropper;
+use crate::storage::basic_storage;
 use crate::{Contract, ContractExt, DropType};
 
 #[derive(PartialEq)]
@@ -22,11 +23,6 @@ impl Dropper for TokenDrop {
             .with_unused_gas_weight(0)
             .resolve_near_claim(created, self.funder.clone(), self.amount)
     }
-}
-
-fn basic_storage() -> NearToken {
-    // Amount needed to store the NEAR{account,u128} struct in the contract
-    env::storage_byte_cost().saturating_mul(PK_STORAGE + ACC_STORAGE + 128)
 }
 
 pub fn create(funder: AccountId, amount: NearToken) -> DropType {
