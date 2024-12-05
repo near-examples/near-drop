@@ -8,10 +8,10 @@ use near_sdk::{
 use crate::constants::*;
 use crate::drop_types::Dropper;
 use crate::storage::basic_storage;
-use crate::DropType;
 use crate::{Contract, ContractExt};
+use crate::{DropData, DropType};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
 pub struct NFTDrop {
     funder: AccountId,
@@ -83,13 +83,14 @@ impl Contract {
     ) -> PromiseOrValue<U128> {
         let public_key = msg.parse().unwrap();
         let token_id_to_drop = token_id.clone();
+        let drop_data = self.drop_for_key.get(&public_key).expect("Missing Key");
 
         // Make sure the drop exists
         if let DropType::NFT(NFTDrop {
             funder,
             nft_contract,
             token_id: _,
-        }) = self.drop_for_key.get(&public_key).expect("Missing Key")
+        }) = &drop_data.drop
         {
             assert!(
                 nft_contract == &env::predecessor_account_id(),
@@ -99,11 +100,14 @@ impl Contract {
             // Update and insert again
             self.drop_for_key.insert(
                 public_key,
-                DropType::NFT(NFTDrop {
-                    funder: funder.clone(),
-                    nft_contract: nft_contract.clone(),
-                    token_id: token_id_to_drop,
-                }),
+                DropData {
+                    counter: drop_data.counter,
+                    drop: DropType::NFT(NFTDrop {
+                        funder: funder.clone(),
+                        nft_contract: nft_contract.clone(),
+                        token_id: token_id_to_drop,
+                    }),
+                },
             )
         } else {
             panic!("Not an NFT drop")

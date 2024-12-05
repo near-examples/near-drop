@@ -14,7 +14,7 @@ pub async fn init(
 
     let creator = root
         .create_subaccount("creator")
-        .initial_balance(NearToken::from_near(2))
+        .initial_balance(NearToken::from_near(5))
         .transact()
         .await?
         .unwrap();

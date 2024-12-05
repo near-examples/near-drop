@@ -1,23 +1,36 @@
-use crate::constants::*;
+use crate::{constants::*, DropData};
 
-use crate::drop_types::Dropper;
+use crate::drop_types::{DropType, Dropper};
 use crate::{Contract, ContractExt};
 
 use near_sdk::serde_json::json;
-use near_sdk::{env, near, AccountId, GasWeight, Promise, PromiseError};
+use near_sdk::{env, log, near, AccountId, GasWeight, Promise, PromiseError};
 
 #[near]
 impl Contract {
     #[private]
     pub fn claim_for(&mut self, account_id: AccountId) -> Promise {
+        // TODO Track accounts which already claimed the drop?
         let public_key = env::signer_account_pk();
-        let drop = self
+        let drop_data = self
             .drop_for_key
             .remove(&public_key)
-            .expect("Missing drop in callback");
+            .expect("The drop was not found");
+        let counter = drop_data.counter - 1;
 
-        drop.promise_for_claiming(account_id)
-            .then(drop.promise_to_resolve_claim(false))
+        if counter > 0 {
+            let updated_drop_data = DropData {
+                counter,
+                drop: drop_data.drop.clone(),
+            };
+            self.drop_for_key
+                .insert(public_key.clone(), updated_drop_data);
+        }
+
+        drop_data
+            .drop
+            .promise_for_claiming(account_id)
+            .then(drop_data.drop.promise_to_resolve_claim(false))
     }
 
     #[private]
@@ -63,11 +76,13 @@ impl Contract {
 
         // Creating the account was successful, we can continue with the claim
         let public_key = env::signer_account_pk();
-        let drop = self
+
+        let drop_data = self
             .drop_for_key
             .remove(&public_key)
             .expect("Missing drop in callback");
 
+        let drop = drop_data.drop;
         drop.promise_for_claiming(account_id)
             .then(drop.promise_to_resolve_claim(true))
     }

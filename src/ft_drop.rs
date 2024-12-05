@@ -5,12 +5,12 @@ use near_sdk::{env, near, AccountId, GasWeight, NearToken, Promise, PromiseError
 use crate::constants::*;
 use crate::drop_types::Dropper;
 use crate::storage::basic_storage;
-use crate::DropType;
 use crate::{Contract, ContractExt};
+use crate::{DropData, DropType};
 
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
 pub struct FTDrop {
     funder: AccountId,
@@ -97,13 +97,14 @@ impl Contract {
     ) -> PromiseOrValue<U128> {
         let public_key = msg.parse().unwrap();
         let amount_to_add = amount.clone();
+        let drop_data = self.drop_for_key.get(&public_key).expect("Missing Key");
 
         // Make sure the drop exists
         if let DropType::FT(FTDrop {
             funder,
             ft_contract,
             amount,
-        }) = self.drop_for_key.get(&public_key).expect("Missing Key")
+        }) = &drop_data.drop
         {
             assert!(
                 ft_contract == &env::predecessor_account_id(),
@@ -113,11 +114,14 @@ impl Contract {
             // Update and insert again
             self.drop_for_key.insert(
                 public_key,
-                DropType::FT(FTDrop {
-                    funder: funder.clone(),
-                    ft_contract: ft_contract.clone(),
-                    amount: amount.saturating_add(amount_to_add),
-                }),
+                DropData {
+                    counter: drop_data.counter,
+                    drop: DropType::FT(FTDrop {
+                        funder: funder.clone(),
+                        ft_contract: ft_contract.clone(),
+                        amount: amount.saturating_add(amount_to_add),
+                    }),
+                },
             )
         } else {
             panic!("Not an FT drop")

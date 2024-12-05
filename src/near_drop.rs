@@ -5,14 +5,14 @@ use crate::drop_types::Dropper;
 use crate::storage::basic_storage;
 use crate::{Contract, ContractExt, DropType};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
-pub struct TokenDrop {
+pub struct NearDrop {
     funder: AccountId,
     amount: NearToken,
 }
 
-impl Dropper for TokenDrop {
+impl Dropper for NearDrop {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
         Promise::new(account_id).transfer(self.amount)
     }
@@ -25,7 +25,7 @@ impl Dropper for TokenDrop {
     }
 }
 
-pub fn create(funder: AccountId, amount: NearToken) -> DropType {
+pub fn create(funder: AccountId, amount: NearToken, quantity: u64) -> DropType {
     assert!(
         amount.ge(&NearToken::from_yoctonear(1)),
         "Give at least 1 yN"
@@ -33,7 +33,7 @@ pub fn create(funder: AccountId, amount: NearToken) -> DropType {
 
     let attached = env::attached_deposit();
     let required = basic_storage()
-        .saturating_add(amount)
+        .saturating_add(amount.saturating_mul(quantity.into()))
         .saturating_add(CREATE_ACCOUNT_FEE)
         .saturating_add(ACCESS_KEY_ALLOWANCE)
         .saturating_add(ACCESS_KEY_STORAGE);
@@ -46,7 +46,7 @@ pub fn create(funder: AccountId, amount: NearToken) -> DropType {
         Promise::new(env::predecessor_account_id()).transfer(extra);
     }
 
-    DropType::NEAR(TokenDrop { funder, amount })
+    DropType::NEAR(NearDrop { funder, amount })
 }
 
 #[near]

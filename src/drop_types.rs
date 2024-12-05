@@ -1,13 +1,13 @@
 use near_sdk::{near, AccountId, Promise};
 
 use crate::ft_drop::FTDrop;
-use crate::near_drop::TokenDrop;
+use crate::near_drop::NearDrop;
 use crate::nft_drop::NFTDrop;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
 pub enum DropType {
-    NEAR(TokenDrop),
+    NEAR(NearDrop),
     FT(FTDrop),
     NFT(NFTDrop),
 }
@@ -20,17 +20,17 @@ pub trait Dropper {
 impl Dropper for DropType {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
         match self {
-            DropType::NEAR(tkdrop) => tkdrop.promise_for_claiming(account_id),
-            DropType::FT(ftdrop) => ftdrop.promise_for_claiming(account_id),
-            DropType::NFT(nftdrop) => nftdrop.promise_for_claiming(account_id),
+            DropType::NEAR(near_drop) => near_drop.promise_for_claiming(account_id),
+            DropType::FT(ft_drop) => ft_drop.promise_for_claiming(account_id),
+            DropType::NFT(nft_drop) => nft_drop.promise_for_claiming(account_id),
         }
     }
 
     fn promise_to_resolve_claim(&self, created: bool) -> Promise {
         match self {
-            DropType::NEAR(tk_drop) => tk_drop.promise_to_resolve_claim(created),
+            DropType::NEAR(near_drop) => near_drop.promise_to_resolve_claim(created),
             DropType::FT(ft_drop) => ft_drop.promise_to_resolve_claim(created),
-            DropType::NFT(nftdrop) => nftdrop.promise_to_resolve_claim(created),
+            DropType::NFT(nft_drop) => nft_drop.promise_to_resolve_claim(created),
         }
     }
 }

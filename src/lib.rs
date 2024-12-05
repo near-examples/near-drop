@@ -1,6 +1,6 @@
 use constants::ACCESS_KEY_ALLOWANCE;
 use drop_types::DropType;
-use near_sdk::json_types::U128;
+use near_sdk::json_types::{U128, U64};
 use near_sdk::store::LookupMap;
 use near_sdk::{
     env, near, AccountId, Allowance, BorshStorageKey, NearToken, PanicOnDefault, Promise, PublicKey,
@@ -20,11 +20,18 @@ enum StorageKey {
     DropForPublicKey,
 }
 
+#[derive(Clone, Debug)]
+#[near]
+pub struct DropData {
+    counter: u64,
+    drop: DropType,
+}
+
 #[derive(PanicOnDefault)]
 #[near(contract_state)]
 pub struct Contract {
     pub top_level_account: AccountId,
-    pub drop_for_key: LookupMap<PublicKey, DropType>,
+    pub drop_for_key: LookupMap<PublicKey, DropData>,
 }
 
 #[near]
@@ -39,28 +46,49 @@ impl Contract {
     }
 
     #[payable]
-    pub fn create_near_drop(&mut self, public_key: PublicKey, amount: U128) -> Promise {
+    pub fn create_near_drop(
+        &mut self,
+        public_key: PublicKey,
+        amount: U128,
+        counter: U64,
+    ) -> Promise {
         let funder = env::predecessor_account_id();
-        let drop = near_drop::create(funder, NearToken::from_yoctonear(amount.0));
-        self.save_drop_and_key(public_key, drop)
+        let drop = near_drop::create(funder, NearToken::from_yoctonear(amount.0), counter.0);
+        self.save_drop_and_key(public_key, drop, counter.0)
     }
 
     #[payable]
-    pub fn create_ft_drop(&mut self, public_key: PublicKey, ft_contract: AccountId) -> Promise {
+    pub fn create_ft_drop(
+        &mut self,
+        public_key: PublicKey,
+        ft_contract: AccountId,
+        counter: U64,
+    ) -> Promise {
         let funder = env::predecessor_account_id();
         let drop = ft_drop::create(funder, ft_contract);
-        self.save_drop_and_key(public_key, drop)
+        self.save_drop_and_key(public_key, drop, counter.0)
     }
 
     #[payable]
-    pub fn create_nft_drop(&mut self, public_key: PublicKey, nft_contract: AccountId) -> Promise {
+    pub fn create_nft_drop(
+        &mut self,
+        public_key: PublicKey,
+        nft_contract: AccountId,
+        counter: U64,
+    ) -> Promise {
         let funder = env::predecessor_account_id();
         let drop = nft_drop::create(funder, nft_contract);
-        self.save_drop_and_key(public_key, drop)
+        self.save_drop_and_key(public_key, drop, counter.0)
     }
 
-    fn save_drop_and_key(&mut self, public_key: PublicKey, drop: DropType) -> Promise {
-        self.drop_for_key.insert(public_key.clone(), drop);
+    fn save_drop_and_key(
+        &mut self,
+        public_key: PublicKey,
+        drop: DropType,
+        counter: u64,
+    ) -> Promise {
+        self.drop_for_key
+            .insert(public_key.clone(), DropData { counter, drop });
 
         // Add key so it can be used to call `claim_for` and `create_account_and_claim`
         Promise::new(env::current_account_id()).add_access_key_allowance(

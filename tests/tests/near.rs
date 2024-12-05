@@ -26,8 +26,10 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     // Creator initiates a call to create a NEAR drop
     let create_result = creator
         .call(contract.id(), "create_near_drop")
-        .args_json(json!({"public_key": secret_key.public_key(), "amount": drop_amount}))
-        .deposit(NearToken::from_millinear(1500))
+        .args_json(
+            json!({"public_key": secret_key.public_key(), "amount": drop_amount, "quantity": "3"}),
+        )
+        .deposit(NearToken::from_millinear(3410))
         .max_gas()
         .transact()
         .await?;
@@ -38,13 +40,13 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
 
     // Contract calls the "claim_for" function to claim the drop for Alice's account
-    let claim_result = claimer
+    let first_claim_result = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
         .max_gas()
         .transact()
         .await?;
-    assert!(claim_result.is_success());
+    assert!(first_claim_result.is_success());
 
     // Get balances after claiming the drop
     let alice_balance_after = get_user_balance(&alice).await;
@@ -57,17 +59,35 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         "user did not receive the claim amount"
     );
 
-    // Try to claim the drop again and check it fails
-    let claim_result = contract
-        .call("claim_for")
+    // Claim the drop again
+    let second_claim_result = claimer
+        .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
         .max_gas()
         .transact()
         .await?;
-    assert!(claim_result.is_failure());
+    assert!(second_claim_result.is_success());
 
     // Ideally there should be no surplus in the contract
     assert!(contract_balance_after.ge(&contract_balance_before));
+
+    // Try to claim the drop again and check it fails
+    let third_claim_result = claimer
+        .call(contract.id(), "claim_for")
+        .args_json(json!({"account_id": alice.id()}))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(third_claim_result.is_success());
+
+    // Try to claim the drop again and check it fails
+    let fourth_claim_result = claimer
+        .call(contract.id(), "claim_for")
+        .args_json(json!({"account_id": alice.id()}))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(fourth_claim_result.is_failure());
 
     Ok(())
 }
@@ -91,7 +111,9 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     // Creator initiates a call to create a NEAR drop
     let create_result = creator
         .call(contract.id(), "create_near_drop")
-        .args_json(json!({"public_key": secret_key.public_key(), "amount": drop_amount}))
+        .args_json(
+            json!({"public_key": secret_key.public_key(), "amount": drop_amount, "quantity": "1"}),
+        )
         .deposit(NearToken::from_millinear(1500))
         .max_gas()
         .transact()
