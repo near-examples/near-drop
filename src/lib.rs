@@ -18,6 +18,7 @@ mod storage;
 #[near]
 enum StorageKey {
     DropForPublicKey,
+    iDrops,
 }
 
 #[derive(Clone, Debug)]
@@ -31,7 +32,8 @@ pub struct DropData {
 #[near(contract_state)]
 pub struct Contract {
     pub top_level_account: AccountId,
-    pub drop_for_key: LookupMap<PublicKey, DropData>,
+    pub drop_for_key: LookupMap<PublicKey, u32>,
+    pub idrops: LookupMap<u32, DropData>,
 }
 
 #[near]
@@ -42,18 +44,28 @@ impl Contract {
         Self {
             top_level_account,
             drop_for_key: LookupMap::new(StorageKey::DropForPublicKey),
+            idrops: LookupMap::new(StorageKey::iDrops),
         }
     }
 
     #[payable]
     pub fn create_near_drop(
         &mut self,
-        public_key: PublicKey,
+        public_key: Vec<PublicKey>,
         amount: U128,
-        counter: U64,
     ) -> Promise {
         let funder = env::predecessor_account_id();
+
+        // check that there is enough NEAR attached for the drop
+        // storage + amount * counter
+
         let drop = near_drop::create(funder, NearToken::from_yoctonear(amount.0), counter.0);
+
+        // add it to self.idrops which gives you an ID
+
+        // for each public_key:
+        //      drop_for_key[key] = ID
+
         self.save_drop_and_key(public_key, drop, counter.0)
     }
 
@@ -62,6 +74,7 @@ impl Contract {
         &mut self,
         public_key: PublicKey,
         ft_contract: AccountId,
+        amount_per_drop: U128,
         counter: U64,
     ) -> Promise {
         let funder = env::predecessor_account_id();

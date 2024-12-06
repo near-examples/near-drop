@@ -12,10 +12,17 @@ impl Contract {
     pub fn claim_for(&mut self, account_id: AccountId) -> Promise {
         // TODO Track accounts which already claimed the drop?
         let public_key = env::signer_account_pk();
-        let drop_data = self
-            .drop_for_key
+        
+        // get the id for the public_key
+        let id = self.drop_for_key
             .remove(&public_key)
             .expect("The drop was not found");
+        
+        let drop_data = self
+            .idrops
+            .remove(&id)
+            .expect("No drop information for key");
+            
         let counter = drop_data.counter - 1;
 
         if counter > 0 {
@@ -23,8 +30,8 @@ impl Contract {
                 counter,
                 drop: drop_data.drop.clone(),
             };
-            self.drop_for_key
-                .insert(public_key.clone(), updated_drop_data);
+            self.idrops
+                .insert(id, updated_drop_data);
         }
 
         drop_data

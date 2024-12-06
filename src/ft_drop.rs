@@ -99,6 +99,8 @@ impl Contract {
         let drop_data = self.drop_for_key.get(&public_key).expect("Missing Key");
         let amount_to_add = amount.saturating_div(drop_data.counter.into());
 
+        // did you transfer counter * drop.amount?????
+
         // Make sure the drop exists
         if let DropType::FT(FTDrop {
             funder,
