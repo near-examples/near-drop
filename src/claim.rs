@@ -36,7 +36,6 @@ impl Contract {
     #[private]
     pub fn create_account_and_claim(&mut self, account_id: AccountId) -> Promise {
         let public_key = env::signer_account_pk();
-        log!("public_key: {:?}", public_key);
 
         if let None = self.drop_for_key.get(&public_key) {
             panic!("No drop for this key")
