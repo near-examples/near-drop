@@ -20,7 +20,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     // Creator initiates a call to create a NEAR drop
     let create_result = creator
         .call(contract.id(), "create_ft_drop")
-        .args_json(json!({"public_key": secret_key.public_key(), "ft_contract": ft_contract.id(), "quantity": "2"}))
+        .args_json(json!({"public_key": secret_key.public_key(), "ft_contract": ft_contract.id(), "counter": "1"}))
         .deposit(NearToken::from_millinear(407))
         .max_gas()
         .transact()
@@ -36,7 +36,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .await?;
     assert!(storage_deposit_res.is_success());
 
-    let args = json!({"receiver_id": contract.id(), "amount": "1", "msg": secret_key.public_key()});
+    let args = json!({"receiver_id": contract.id(), "amount": "2", "msg": secret_key.public_key()});
     let ft_drop_amount = NearToken::from_yoctonear(1);
 
     let ft_transfer_res = creator
@@ -68,6 +68,14 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .json::<U128>()?;
     assert!(alice_ft_balance == U128(ft_drop_amount.as_yoctonear()));
 
+    let second_claim_result = claimer
+        .call(contract.id(), "claim_for")
+        .args_json(json!({"account_id": alice.id()}))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(second_claim_result.is_failure());
+
     Ok(())
 }
 
@@ -85,7 +93,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     // Creator initiates a call to create a NEAR drop
     let create_result = creator
         .call(contract.id(), "create_ft_drop")
-        .args_json(json!({"public_key": secret_key.public_key(), "ft_contract": ft_contract.id(), "quantity": "2"}))
+        .args_json(json!({"public_key": secret_key.public_key(), "ft_contract": ft_contract.id(), "counter": "2"}))
         .deposit(NearToken::from_millinear(407))
         .max_gas()
         .transact()
@@ -123,13 +131,15 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
             .unwrap();
     let long_account = Account::from_secret_key(long_account_id.clone(), secret_key, &worker);
 
-    let claim_result = claimer
+    let first_claim_result = claimer
         .call(contract.id(), "create_account_and_claim")
         .args_json(json!({"account_id": long_account_id}))
         .max_gas()
         .transact()
         .await?;
-    assert!(claim_result.is_success());
+    println!("first_claim_result: {:#?}", first_claim_result);
+
+    assert!(first_claim_result.is_success());
 
     let long_account_ft_balance = ft_contract
         .call("ft_balance_of")
@@ -140,13 +150,22 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     assert!(long_account_ft_balance == U128(ft_drop_amount.as_yoctonear()));
 
     // Try to claim the drop again and check it fails
-    let claim_result = claimer
+    let second_claim_result = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
         .max_gas()
         .transact()
         .await?;
-    assert!(claim_result.is_failure());
+    println!("second_claim_result: {:#?}", second_claim_result);
+    assert!(second_claim_result.is_success());
+
+    let third_claim_result = claimer
+        .call(contract.id(), "claim_for")
+        .args_json(json!({"account_id": alice.id()}))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(third_claim_result.is_failure());
 
     Ok(())
 }

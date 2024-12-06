@@ -22,7 +22,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_nft_drop")
         .args_json(
-            json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id(), "quantity": "2"}),
+            json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id(), "counter": "1"}),
         )
         .deposit(NearToken::from_millinear(407))
         .max_gas()
@@ -78,7 +78,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_nft_drop")
         .args_json(
-            json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id(), "quantity": "2"}),
+            json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id(), "counter": "1"}),
         )
         .deposit(NearToken::from_millinear(407))
         .max_gas()

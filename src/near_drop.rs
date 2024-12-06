@@ -25,7 +25,7 @@ impl Dropper for NearDrop {
     }
 }
 
-pub fn create(funder: AccountId, amount: NearToken, quantity: u64) -> DropType {
+pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> DropType {
     assert!(
         amount.ge(&NearToken::from_yoctonear(1)),
         "Give at least 1 yN"
@@ -33,7 +33,7 @@ pub fn create(funder: AccountId, amount: NearToken, quantity: u64) -> DropType {
 
     let attached = env::attached_deposit();
     let required = basic_storage()
-        .saturating_add(amount.saturating_mul(quantity.into()))
+        .saturating_add(amount.saturating_mul(counter.into()))
         .saturating_add(CREATE_ACCOUNT_FEE)
         .saturating_add(ACCESS_KEY_ALLOWANCE)
         .saturating_add(ACCESS_KEY_STORAGE);

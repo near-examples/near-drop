@@ -36,6 +36,7 @@ impl Contract {
     #[private]
     pub fn create_account_and_claim(&mut self, account_id: AccountId) -> Promise {
         let public_key = env::signer_account_pk();
+        log!("public_key: {:?}", public_key);
 
         if let None = self.drop_for_key.get(&public_key) {
             panic!("No drop for this key")
@@ -76,14 +77,24 @@ impl Contract {
 
         // Creating the account was successful, we can continue with the claim
         let public_key = env::signer_account_pk();
-
         let drop_data = self
             .drop_for_key
             .remove(&public_key)
             .expect("Missing drop in callback");
+        let counter = drop_data.counter - 1;
 
-        let drop = drop_data.drop;
-        drop.promise_for_claiming(account_id)
-            .then(drop.promise_to_resolve_claim(true))
+        if counter > 0 {
+            let updated_drop_data = DropData {
+                counter,
+                drop: drop_data.drop.clone(),
+            };
+            self.drop_for_key
+                .insert(public_key.clone(), updated_drop_data);
+        }
+
+        drop_data
+            .drop
+            .promise_for_claiming(account_id)
+            .then(drop_data.drop.promise_to_resolve_claim(true))
     }
 }

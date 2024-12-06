@@ -27,7 +27,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
-            json!({"public_key": secret_key.public_key(), "amount": drop_amount, "quantity": "3"}),
+            json!({"public_key": secret_key.public_key(), "amount": drop_amount, "counter": "3"}),
         )
         .deposit(NearToken::from_millinear(3410))
         .max_gas()
@@ -112,7 +112,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
-            json!({"public_key": secret_key.public_key(), "amount": drop_amount, "quantity": "1"}),
+            json!({"public_key": secret_key.public_key(), "amount": drop_amount, "counter": "1"}),
         )
         .deposit(NearToken::from_millinear(1500))
         .max_gas()
