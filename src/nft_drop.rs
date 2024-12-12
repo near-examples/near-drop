@@ -8,8 +8,8 @@ use near_sdk::{
 use crate::constants::*;
 use crate::drop_types::Dropper;
 use crate::storage::basic_storage;
+use crate::Drop;
 use crate::{Contract, ContractExt};
-use crate::{DropData, DropType};
 
 #[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
@@ -50,7 +50,7 @@ impl Dropper for NFTDrop {
     }
 }
 
-pub fn create(funder: AccountId, nft_contract: AccountId) -> DropType {
+pub fn create(funder: AccountId, nft_contract: AccountId) -> Drop {
     let attached = env::attached_deposit();
     let required = basic_storage()
         .saturating_add(ACCESS_KEY_ALLOWANCE)
@@ -64,7 +64,7 @@ pub fn create(funder: AccountId, nft_contract: AccountId) -> DropType {
 
     // TODO: Add refund
 
-    DropType::NFT(NFTDrop {
+    Drop::NFT(NFTDrop {
         funder,
         nft_contract,
         token_id: "".to_string(),
@@ -81,16 +81,15 @@ impl Contract {
         approval_id: u32,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        let public_key = msg.parse().unwrap();
         let token_id_to_drop = token_id.clone();
-        let drop_data = self.drop_for_key.get(&public_key).expect("Missing Key");
+        let drop = self.drop_by_id.get(&msg).expect("Missing Drop");
 
         // Make sure the drop exists
-        if let DropType::NFT(NFTDrop {
+        if let Drop::NFT(NFTDrop {
             funder,
             nft_contract,
             token_id: _,
-        }) = &drop_data.drop
+        }) = &drop
         {
             assert!(
                 nft_contract == &env::predecessor_account_id(),
@@ -98,16 +97,13 @@ impl Contract {
             );
 
             // Update and insert again
-            self.drop_for_key.insert(
-                public_key,
-                DropData {
-                    counter: drop_data.counter,
-                    drop: DropType::NFT(NFTDrop {
-                        funder: funder.clone(),
-                        nft_contract: nft_contract.clone(),
-                        token_id: token_id_to_drop,
-                    }),
-                },
+            self.drop_by_id.insert(
+                msg.to_string(),
+                Drop::NFT(NFTDrop {
+                    funder: funder.clone(),
+                    nft_contract: nft_contract.clone(),
+                    token_id: token_id_to_drop,
+                }),
             )
         } else {
             panic!("Not an NFT drop")

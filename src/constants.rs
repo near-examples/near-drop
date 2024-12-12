@@ -1,8 +1,6 @@
 use near_sdk::{Gas, NearToken};
 
-// Bytes used to store common data types
-pub const PK_STORAGE: u128 = 32; // PublicKey
-pub const ACC_STORAGE: u128 = 32 + 64; // AccountId
+pub type DropId = String;
 
 /*
     minimum amount of storage required to store an access key on the contract

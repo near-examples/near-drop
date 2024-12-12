@@ -1,15 +1,16 @@
 use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 use crate::constants::*;
-use crate::drop_types::Dropper;
+use crate::drop_types::{Dropper, Getters};
 use crate::storage::basic_storage;
-use crate::{Contract, ContractExt, DropType};
+use crate::{Contract, ContractExt, Drop};
 
 #[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
 pub struct NearDrop {
     funder: AccountId,
     amount: NearToken,
+    counter: u64,
 }
 
 impl Dropper for NearDrop {
@@ -25,7 +26,17 @@ impl Dropper for NearDrop {
     }
 }
 
-pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> DropType {
+impl Getters for NearDrop {
+    fn get_counter(&self) -> Result<u64, &str> {
+        Ok(self.counter)
+    }
+
+    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
+        Ok(self.amount)
+    }
+}
+
+pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> Drop {
     assert!(
         amount.ge(&NearToken::from_yoctonear(1)),
         "Give at least 1 yN"
@@ -46,7 +57,11 @@ pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> DropType {
         Promise::new(env::predecessor_account_id()).transfer(extra);
     }
 
-    DropType::NEAR(NearDrop { funder, amount })
+    Drop::NEAR(NearDrop {
+        funder,
+        amount,
+        counter,
+    })
 }
 
 #[near]

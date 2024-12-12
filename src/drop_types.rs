@@ -1,4 +1,4 @@
-use near_sdk::{near, AccountId, Promise};
+use near_sdk::{near, AccountId, NearToken, Promise};
 
 use crate::ft_drop::FTDrop;
 use crate::near_drop::NearDrop;
@@ -6,7 +6,7 @@ use crate::nft_drop::NFTDrop;
 
 #[derive(PartialEq, Clone, Debug)]
 #[near(serializers = [borsh])]
-pub enum DropType {
+pub enum Drop {
     NEAR(NearDrop),
     FT(FTDrop),
     NFT(NFTDrop),
@@ -17,20 +17,43 @@ pub trait Dropper {
     fn promise_to_resolve_claim(&self, created: bool) -> Promise;
 }
 
-impl Dropper for DropType {
+pub trait Getters {
+    fn get_amount_per_drop(&self) -> Result<NearToken, &str>;
+    fn get_counter(&self) -> Result<u64, &str>;
+}
+
+impl Dropper for Drop {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
         match self {
-            DropType::NEAR(near_drop) => near_drop.promise_for_claiming(account_id),
-            DropType::FT(ft_drop) => ft_drop.promise_for_claiming(account_id),
-            DropType::NFT(nft_drop) => nft_drop.promise_for_claiming(account_id),
+            Drop::NEAR(near_drop) => near_drop.promise_for_claiming(account_id),
+            Drop::FT(ft_drop) => ft_drop.promise_for_claiming(account_id),
+            Drop::NFT(nft_drop) => nft_drop.promise_for_claiming(account_id),
         }
     }
 
     fn promise_to_resolve_claim(&self, created: bool) -> Promise {
         match self {
-            DropType::NEAR(near_drop) => near_drop.promise_to_resolve_claim(created),
-            DropType::FT(ft_drop) => ft_drop.promise_to_resolve_claim(created),
-            DropType::NFT(nft_drop) => nft_drop.promise_to_resolve_claim(created),
+            Drop::NEAR(near_drop) => near_drop.promise_to_resolve_claim(created),
+            Drop::FT(ft_drop) => ft_drop.promise_to_resolve_claim(created),
+            Drop::NFT(nft_drop) => nft_drop.promise_to_resolve_claim(created),
+        }
+    }
+}
+
+impl Getters for Drop {
+    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
+        match self {
+            Drop::NEAR(near_drop) => near_drop.get_amount_per_drop(),
+            Drop::FT(ft_drop) => ft_drop.get_amount_per_drop(),
+            _ => Err("There is no amount_per_drop field for NFT drop structure"),
+        }
+    }
+
+    fn get_counter(&self) -> Result<u64, &str> {
+        match self {
+            Drop::NEAR(near_drop) => near_drop.get_counter(),
+            Drop::FT(ft_drop) => ft_drop.get_counter(),
+            _ => Err("There is no amount_per_drop field for NFT drop structure"),
         }
     }
 }

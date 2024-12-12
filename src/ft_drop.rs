@@ -1,12 +1,15 @@
+use near_sdk::env::log;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_sdk::{env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue};
+use near_sdk::{
+    env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
+};
 
 use crate::constants::*;
-use crate::drop_types::Dropper;
+use crate::drop_types::{Dropper, Getters};
 use crate::storage::basic_storage;
+use crate::Drop;
 use crate::{Contract, ContractExt};
-use crate::{DropData, DropType};
 
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
@@ -16,6 +19,7 @@ pub struct FTDrop {
     funder: AccountId,
     amount: NearToken,
     ft_contract: AccountId,
+    counter: u64,
 }
 
 impl Dropper for FTDrop {
@@ -65,7 +69,22 @@ impl Dropper for FTDrop {
     }
 }
 
-pub fn create(funder: AccountId, ft_contract: AccountId) -> DropType {
+impl Getters for FTDrop {
+    fn get_counter(&self) -> Result<u64, &str> {
+        Ok(self.counter)
+    }
+
+    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
+        Ok(self.amount)
+    }
+}
+
+pub fn create(
+    funder: AccountId,
+    ft_contract: AccountId,
+    amount_per_drop: NearToken,
+    counter: u64,
+) -> Drop {
     let attached = env::attached_deposit();
     let required = basic_storage()
         .saturating_add(ACCESS_KEY_ALLOWANCE)
@@ -79,10 +98,11 @@ pub fn create(funder: AccountId, ft_contract: AccountId) -> DropType {
 
     // TODO: Add refund
 
-    DropType::FT(FTDrop {
+    Drop::FT(FTDrop {
         funder,
         ft_contract,
-        amount: NearToken::from_yoctonear(0),
+        amount: amount_per_drop,
+        counter,
     })
 }
 
@@ -95,35 +115,39 @@ impl Contract {
         amount: NearToken,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        let public_key = msg.parse().unwrap();
-        let drop_data = self.drop_for_key.get(&public_key).expect("Missing Key");
-        let amount_to_add = amount.saturating_div(drop_data.counter.into());
+        let drop = self.drop_by_id.get(&msg).expect("Missing such drop_id");
+        let counter = drop.get_counter().unwrap();
+        let amount_per_drop = drop.get_amount_per_drop().unwrap();
+        let required_amount = amount_per_drop.saturating_mul(counter.into());
+        assert_eq!(
+            amount, required_amount,
+            "Wrong FT amount, expected {required_amount}"
+        );
 
         // did you transfer counter * drop.amount?????
 
         // Make sure the drop exists
-        if let DropType::FT(FTDrop {
+        if let Drop::FT(FTDrop {
             funder,
             ft_contract,
             amount,
-        }) = &drop_data.drop
+            counter,
+        }) = &drop
         {
-            assert!(
-                ft_contract == &env::predecessor_account_id(),
+            assert_eq!(
+                ft_contract,
+                &env::predecessor_account_id(),
                 "Wrong FTs, expected {ft_contract}"
             );
-
             // Update and insert again
-            self.drop_for_key.insert(
-                public_key,
-                DropData {
-                    counter: drop_data.counter,
-                    drop: DropType::FT(FTDrop {
-                        funder: funder.clone(),
-                        ft_contract: ft_contract.clone(),
-                        amount: amount.saturating_add(amount_to_add),
-                    }),
-                },
+            self.drop_by_id.insert(
+                msg,
+                Drop::FT(FTDrop {
+                    funder: funder.clone(),
+                    ft_contract: ft_contract.clone(),
+                    amount: amount.clone(),
+                    counter: counter - 1,
+                }),
             )
         } else {
             panic!("Not an FT drop")
@@ -146,6 +170,10 @@ impl Contract {
             to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
         }
 
+        log!(
+            "args: {:?}",
+            json!({"receiver_id": funder, "amount": U128(amount.as_yoctonear())})
+        );
         if result.is_err() {
             // Return Tokens
             let transfer_args =

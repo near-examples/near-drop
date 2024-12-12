@@ -15,6 +15,8 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let (contract, creator, alice) = init(&worker, &root).await?;
     let (nft_contract, token_id) = init_nft_contract(&worker, &creator).await?;
 
+    let drop_id = "1";
+
     // Generate the secret key
     let secret_key = SecretKey::from_random(KeyType::ED25519);
 
@@ -22,7 +24,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_nft_drop")
         .args_json(
-            json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id(), "counter": "1"}),
+            json!({"drop_id": drop_id, "public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}),
         )
         .deposit(NearToken::from_millinear(407))
         .max_gas()
@@ -32,7 +34,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
 
     let approve_res = creator
         .call(nft_contract.id(), "nft_approve")
-        .args_json(json!({"token_id": token_id, "account_id": contract.id(), "msg": secret_key.public_key()}))
+        .args_json(json!({"token_id": token_id, "account_id": contract.id(), "msg": drop_id}))
         .deposit(NearToken::from_yoctonear(450000000000000000000))
         .max_gas()
         .transact()
@@ -71,6 +73,8 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let (contract, creator, alice) = init(&worker, &root).await?;
     let (nft_contract, token_id) = init_nft_contract(&worker, &creator).await?;
 
+    let drop_id = "1";
+
     // Generate the secret key
     let secret_key = SecretKey::from_random(KeyType::ED25519);
 
@@ -78,7 +82,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_nft_drop")
         .args_json(
-            json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id(), "counter": "1"}),
+          json!({"drop_id": drop_id, "public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}),
         )
         .deposit(NearToken::from_millinear(407))
         .max_gas()
@@ -88,7 +92,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
 
     let approve_res = creator
         .call(nft_contract.id(), "nft_approve")
-        .args_json(json!({"token_id": token_id, "account_id": contract.id(), "msg": secret_key.public_key()}))
+        .args_json(json!({"token_id": token_id, "account_id": contract.id(), "msg": drop_id}))
         .deposit(NearToken::from_yoctonear(450000000000000000000))
         .max_gas()
         .transact()

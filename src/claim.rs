@@ -1,6 +1,6 @@
-use crate::{constants::*, DropData};
+use crate::constants::*;
 
-use crate::drop_types::{DropType, Dropper};
+use crate::drop_types::{Drop, Dropper};
 use crate::{Contract, ContractExt};
 
 use near_sdk::serde_json::json;
@@ -12,39 +12,29 @@ impl Contract {
     pub fn claim_for(&mut self, account_id: AccountId) -> Promise {
         // TODO Track accounts which already claimed the drop?
         let public_key = env::signer_account_pk();
-        
+
         // get the id for the public_key
-        let id = self.drop_for_key
+        let drop_id = self
+            .drop_id_by_key
             .remove(&public_key)
             .expect("The drop was not found");
-        
-        let drop_data = self
-            .idrops
-            .remove(&id)
+
+        let drop = self
+            .drop_by_id
+            .remove(&drop_id)
             .expect("No drop information for key");
-            
-        let counter = drop_data.counter - 1;
 
-        if counter > 0 {
-            let updated_drop_data = DropData {
-                counter,
-                drop: drop_data.drop.clone(),
-            };
-            self.idrops
-                .insert(id, updated_drop_data);
-        }
+        self.drop_by_id.insert(drop_id, drop.clone());
 
-        drop_data
-            .drop
-            .promise_for_claiming(account_id)
-            .then(drop_data.drop.promise_to_resolve_claim(false))
+        drop.promise_for_claiming(account_id)
+            .then(drop.promise_to_resolve_claim(false))
     }
 
     #[private]
     pub fn create_account_and_claim(&mut self, account_id: AccountId) -> Promise {
         let public_key = env::signer_account_pk();
 
-        if let None = self.drop_for_key.get(&public_key) {
+        if let None = self.drop_id_by_key.get(&public_key) {
             panic!("No drop for this key")
         }
 
@@ -83,24 +73,18 @@ impl Contract {
 
         // Creating the account was successful, we can continue with the claim
         let public_key = env::signer_account_pk();
-        let drop_data = self
-            .drop_for_key
+        let drop_id = self
+            .drop_id_by_key
             .remove(&public_key)
+            .expect("Missing Key");
+        let drop = self
+            .drop_by_id
+            .remove(&drop_id)
             .expect("Missing drop in callback");
-        let counter = drop_data.counter - 1;
 
-        if counter > 0 {
-            let updated_drop_data = DropData {
-                counter,
-                drop: drop_data.drop.clone(),
-            };
-            self.drop_for_key
-                .insert(public_key.clone(), updated_drop_data);
-        }
+        self.drop_by_id.insert(drop_id, drop.clone());
 
-        drop_data
-            .drop
-            .promise_for_claiming(account_id)
-            .then(drop_data.drop.promise_to_resolve_claim(true))
+        drop.promise_for_claiming(account_id)
+            .then(drop.promise_to_resolve_claim(true))
     }
 }
