@@ -36,27 +36,15 @@ impl Getters for NearDrop {
     }
 }
 
-pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> Drop {
-    assert!(
-        amount.ge(&NearToken::from_yoctonear(1)),
-        "Give at least 1 yN"
-    );
-
-    let attached = env::attached_deposit();
-    let required = basic_storage()
-        .saturating_add(amount.saturating_mul(counter.into()))
+pub fn required_deposit(drop_amount: NearToken) -> NearToken {
+    basic_storage()
+        .saturating_add(drop_amount)
         .saturating_add(CREATE_ACCOUNT_FEE)
         .saturating_add(ACCESS_KEY_ALLOWANCE)
-        .saturating_add(ACCESS_KEY_STORAGE);
+        .saturating_add(ACCESS_KEY_STORAGE)
+}
 
-    assert!(attached >= required, "Please attach at least {required}");
-
-    let extra = attached.saturating_sub(required);
-    if extra.gt(&NearToken::from_yoctonear(0)) {
-        // refund the user, we don't need that money
-        Promise::new(env::predecessor_account_id()).transfer(extra);
-    }
-
+pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> Drop {
     Drop::NEAR(NearDrop {
         funder,
         amount,

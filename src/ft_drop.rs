@@ -79,6 +79,13 @@ impl Getters for FTDrop {
     }
 }
 
+pub fn required_deposit() -> NearToken {
+    basic_storage()
+        .saturating_add(CREATE_ACCOUNT_FEE)
+        .saturating_add(ACCESS_KEY_ALLOWANCE)
+        .saturating_add(ACCESS_KEY_STORAGE)
+}
+
 pub fn create(
     funder: AccountId,
     ft_contract: AccountId,
@@ -87,9 +94,9 @@ pub fn create(
 ) -> Drop {
     let attached = env::attached_deposit();
     let required = basic_storage()
+        .saturating_add(CREATE_ACCOUNT_FEE)
         .saturating_add(ACCESS_KEY_ALLOWANCE)
-        .saturating_add(ACCESS_KEY_STORAGE)
-        .saturating_add(CREATE_ACCOUNT_FEE);
+        .saturating_add(ACCESS_KEY_STORAGE);
 
     assert!(
         attached.ge(&required),

@@ -50,20 +50,14 @@ impl Dropper for NFTDrop {
     }
 }
 
-pub fn create(funder: AccountId, nft_contract: AccountId) -> Drop {
-    let attached = env::attached_deposit();
-    let required = basic_storage()
+pub fn required_deposit() -> NearToken {
+    basic_storage()
+        .saturating_add(CREATE_ACCOUNT_FEE)
         .saturating_add(ACCESS_KEY_ALLOWANCE)
         .saturating_add(ACCESS_KEY_STORAGE)
-        .saturating_add(CREATE_ACCOUNT_FEE);
+}
 
-    assert!(
-        attached.ge(&required),
-        "Please attach exactly {required}. You attached {attached}"
-    );
-
-    // TODO: Add refund
-
+pub fn create(funder: AccountId, nft_contract: AccountId) -> Drop {
     Drop::NFT(NFTDrop {
         funder,
         nft_contract,

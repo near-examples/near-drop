@@ -48,11 +48,27 @@ impl Contract {
         public_keys: Vec<PublicKey>,
         amount_per_drop: U128,
     ) {
+        let attached_deposit = env::attached_deposit();
+        let required_deposit = near_drop::required_deposit(
+            NearToken::from_yoctonear(amount_per_drop.0)
+                .saturating_mul(public_keys.len().try_into().unwrap()),
+        );
+        assert!(
+            attached_deposit >= required_deposit,
+            "Please attach at least {required_deposit}"
+        );
+
+        let extra_deposit = attached_deposit.saturating_sub(required_deposit);
+        if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
+            // refund the user, we don't need that money
+            Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
+        }
+        assert!(
+            NearToken::from_yoctonear(amount_per_drop.0).ge(&NearToken::from_yoctonear(1)),
+            "Give at least 1 yN" // TODO Proper message about required amount_per_drop at least 1
+        );
+
         let funder = env::predecessor_account_id();
-
-        // check that there is enough NEAR attached for the drop
-        // storage + amount * counter
-
         let drop = near_drop::create(
             funder,
             NearToken::from_yoctonear(amount_per_drop.0),
@@ -71,6 +87,23 @@ impl Contract {
         ft_contract: AccountId,
         amount_per_drop: U128,
     ) {
+        let attached_deposit = env::attached_deposit();
+        let required_deposit = ft_drop::required_deposit();
+        assert!(
+            attached_deposit >= required_deposit,
+            "Please attach at least {required_deposit}"
+        );
+
+        let extra_deposit = attached_deposit.saturating_sub(required_deposit);
+        if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
+            // refund the user, we don't need that money
+            Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
+        }
+        assert!(
+            NearToken::from_yoctonear(amount_per_drop.0).ge(&NearToken::from_yoctonear(1)),
+            "Give at least 1 yN" // TODO Proper message about required amount_per_drop at least 1
+        );
+
         let funder = env::predecessor_account_id();
         let drop = ft_drop::create(
             funder,
@@ -89,6 +122,19 @@ impl Contract {
         public_key: PublicKey,
         nft_contract: AccountId,
     ) {
+        let attached_deposit = env::attached_deposit();
+        let required_deposit = nft_drop::required_deposit();
+        assert!(
+            attached_deposit >= required_deposit,
+            "Please attach at least {required_deposit}"
+        );
+
+        let extra_deposit = attached_deposit.saturating_sub(required_deposit);
+        if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
+            // refund the user, we don't need that money
+            Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
+        }
+
         let funder = env::predecessor_account_id();
         let drop = nft_drop::create(funder, nft_contract);
         self.save_drop_by_id(drop_id.clone(), drop);
