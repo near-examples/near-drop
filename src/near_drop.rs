@@ -1,7 +1,7 @@
 use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 use crate::constants::*;
-use crate::drop_types::{Dropper, Getters};
+use crate::drop_types::{Dropper, Getters, Setters};
 use crate::storage::basic_storage;
 use crate::{Contract, ContractExt, Drop};
 
@@ -33,6 +33,13 @@ impl Getters for NearDrop {
 
     fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
         Ok(self.amount)
+    }
+}
+
+impl Setters for NearDrop {
+    fn set_counter(&mut self, value: u64) -> Result<(), &str> {
+        self.counter = value;
+        Ok(())
     }
 }
 

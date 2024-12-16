@@ -22,6 +22,10 @@ pub trait Getters {
     fn get_counter(&self) -> Result<u64, &str>;
 }
 
+pub trait Setters {
+    fn set_counter(&mut self, value: u64) -> Result<(), &str>;
+}
+
 impl Dropper for Drop {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
         match self {
@@ -54,6 +58,16 @@ impl Getters for Drop {
             Drop::NEAR(near_drop) => near_drop.get_counter(),
             Drop::FT(ft_drop) => ft_drop.get_counter(),
             _ => Err("There is no amount_per_drop field for NFT drop structure"),
+        }
+    }
+}
+
+impl Setters for Drop {
+    fn set_counter(&mut self, value: u64) -> Result<(), &str> {
+        match self {
+            Drop::NEAR(near_drop) => near_drop.set_counter(value),
+            Drop::FT(ft_drop) => ft_drop.set_counter(value),
+            _ => Err("There is no counter field for NFT drop structure"),
         }
     }
 }

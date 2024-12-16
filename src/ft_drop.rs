@@ -1,4 +1,3 @@
-use near_sdk::env::log;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
@@ -6,7 +5,7 @@ use near_sdk::{
 };
 
 use crate::constants::*;
-use crate::drop_types::{Dropper, Getters};
+use crate::drop_types::{Dropper, Getters, Setters};
 use crate::storage::basic_storage;
 use crate::Drop;
 use crate::{Contract, ContractExt};
@@ -76,6 +75,13 @@ impl Getters for FTDrop {
 
     fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
         Ok(self.amount)
+    }
+}
+
+impl Setters for FTDrop {
+    fn set_counter(&mut self, value: u64) -> Result<(), &str> {
+        self.counter = value;
+        Ok(())
     }
 }
 
@@ -153,7 +159,7 @@ impl Contract {
                     funder: funder.clone(),
                     ft_contract: ft_contract.clone(),
                     amount: amount.clone(),
-                    counter: counter - 1,
+                    counter: counter.clone(),
                 }),
             )
         } else {

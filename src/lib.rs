@@ -1,9 +1,10 @@
 use constants::{DropId, ACCESS_KEY_ALLOWANCE};
 use drop_types::Drop;
-use near_sdk::json_types::{U128, U64};
+use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{
-    env, near, AccountId, Allowance, BorshStorageKey, NearToken, PanicOnDefault, Promise, PublicKey,
+    env, log, near, AccountId, Allowance, BorshStorageKey, NearToken, PanicOnDefault, Promise,
+    PublicKey,
 };
 
 mod claim;
