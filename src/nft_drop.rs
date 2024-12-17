@@ -12,7 +12,7 @@ use crate::Drop;
 use crate::{Contract, ContractExt};
 
 #[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh])]
+#[near(serializers = [borsh, json])]
 pub struct NFTDrop {
     funder: AccountId,
     token_id: String,

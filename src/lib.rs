@@ -3,8 +3,7 @@ use drop_types::Drop;
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{
-    env, log, near, AccountId, Allowance, BorshStorageKey, NearToken, PanicOnDefault, Promise,
-    PublicKey,
+    env, near, AccountId, Allowance, BorshStorageKey, NearToken, PanicOnDefault, Promise, PublicKey,
 };
 
 mod claim;
@@ -162,5 +161,12 @@ impl Contract {
 
     fn save_drop_by_id(&mut self, drop_id: DropId, drop: Drop) {
         self.drop_by_id.insert(drop_id, drop);
+    }
+
+    pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {
+        self.drop_by_id
+            .get(&drop_id)
+            .expect("No drop information for drop_id")
+            .to_owned()
     }
 }

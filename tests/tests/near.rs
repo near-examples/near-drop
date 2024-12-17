@@ -17,6 +17,8 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let alice_balance_before = get_user_balance(&alice).await;
     let contract_balance_before = get_user_balance(contract.as_account()).await;
 
+    let drop_id = "1";
+
     // Define the drop amount to be 1 NearToken
     let amount_per_drop = NearToken::from_near(1);
 
@@ -28,7 +30,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let create_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
-            json!({"drop_id": "1", "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop, "counter": "2"}),
+            json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop, "counter": "2"}),
         )
         .deposit(NearToken::from_millinear(3410))
         .max_gas()
@@ -82,6 +84,13 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(claim_result.is_failure());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
 
     Ok(())
 }
@@ -151,6 +160,13 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
 
     // Ideally there should be no surplus in the contract
     assert!(contract_balance_after.ge(&contract_balance_before));
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
 
     Ok(())
 }

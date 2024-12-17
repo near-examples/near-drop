@@ -99,6 +99,13 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .json::<NearToken>()?;
     assert!(alice_ft_balance_2 == alice_ft_balance_1.saturating_add(amount_per_drop));
 
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
+
     Ok(())
 }
 
@@ -181,6 +188,13 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(claim_result_2.is_failure());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
 
     Ok(())
 }

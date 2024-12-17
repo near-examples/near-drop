@@ -6,7 +6,7 @@ use crate::storage::basic_storage;
 use crate::{Contract, ContractExt, Drop};
 
 #[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh])]
+#[near(serializers = [borsh, json])]
 pub struct NearDrop {
     funder: AccountId,
     amount: NearToken,

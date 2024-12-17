@@ -62,6 +62,13 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
 
     assert_eq!(alice_nfts[0].token_id, token_id);
 
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
+
     Ok(())
 }
 
@@ -134,6 +141,13 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(claim_result.is_failure());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
 
     Ok(())
 }

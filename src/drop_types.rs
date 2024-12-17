@@ -5,7 +5,7 @@ use crate::near_drop::NearDrop;
 use crate::nft_drop::NFTDrop;
 
 #[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh])]
+#[near(serializers = [borsh, json])]
 pub enum Drop {
     NEAR(NearDrop),
     FT(FTDrop),

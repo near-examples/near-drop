@@ -13,7 +13,7 @@ use crate::{Contract, ContractExt};
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
 #[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh])]
+#[near(serializers = [borsh, json])]
 pub struct FTDrop {
     funder: AccountId,
     amount: NearToken,

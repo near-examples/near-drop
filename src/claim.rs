@@ -1,38 +1,16 @@
 use crate::constants::*;
 
-use crate::drop_types::{Drop, Dropper, Getters, Setters};
+use crate::drop_types::{Dropper, Getters, Setters};
 use crate::{Contract, ContractExt};
 
 use near_sdk::serde_json::json;
-use near_sdk::{env, log, near, AccountId, GasWeight, Promise, PromiseError};
+use near_sdk::{env, near, AccountId, GasWeight, Promise, PromiseError};
 
 #[near]
 impl Contract {
     #[private]
     pub fn claim_for(&mut self, account_id: AccountId) -> Promise {
-        let public_key = env::signer_account_pk();
-
-        // get the id for the public_key
-        let drop_id = self
-            .drop_id_by_key
-            .remove(&public_key)
-            .expect("The drop was not found");
-
-        let drop = self
-            .drop_by_id
-            .remove(&drop_id)
-            .expect("No drop information for key");
-        let counter = drop.get_counter().unwrap_or(1);
-        let updated_counter = counter - 1;
-        let mut updated_drop = drop.clone();
-        let _ = updated_drop.set_counter(updated_counter);
-
-        if updated_counter > 0 {
-            self.drop_by_id.insert(drop_id.clone(), updated_drop);
-        }
-
-        drop.promise_for_claiming(account_id)
-            .then(drop.promise_to_resolve_claim(false))
+        self.internal_claim(account_id, false)
     }
 
     #[private]
@@ -77,19 +55,32 @@ impl Contract {
         }
 
         // Creating the account was successful, we can continue with the claim
+        self.internal_claim(account_id, true)
+    }
+
+    fn internal_claim(&mut self, account_id: AccountId, created: bool) -> Promise {
         let public_key = env::signer_account_pk();
+
+        // get the id for the public_key
         let drop_id = self
             .drop_id_by_key
             .remove(&public_key)
-            .expect("Missing Key");
+            .expect("The drop was not found");
+
         let drop = self
             .drop_by_id
             .remove(&drop_id)
-            .expect("Missing drop in callback");
+            .expect("No drop information for drop_id");
+        let counter = drop.get_counter().unwrap_or(1);
+        let updated_counter = counter - 1;
 
-        self.drop_by_id.insert(drop_id, drop.clone());
+        if updated_counter > 0 {
+            let mut updated_drop = drop.clone();
+            let _ = updated_drop.set_counter(updated_counter);
+            self.drop_by_id.insert(drop_id.clone(), updated_drop);
+        }
 
         drop.promise_for_claiming(account_id)
-            .then(drop.promise_to_resolve_claim(true))
+            .then(drop.promise_to_resolve_claim(created))
     }
 }
