@@ -1,11 +1,13 @@
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::{near, AccountId, NearToken, Promise};
 
 use crate::ft_drop::FTDrop;
 use crate::near_drop::NearDrop;
 use crate::nft_drop::NFTDrop;
 
-#[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh, json])]
+#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[near(serializers = [json])]
+#[borsh(crate = "near_sdk::borsh")]
 pub enum Drop {
     NEAR(NearDrop),
     FT(FTDrop),

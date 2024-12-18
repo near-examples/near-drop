@@ -1,8 +1,10 @@
 use near_contract_standards::non_fungible_token::TokenId;
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
     env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
+    PublicKey,
 };
 
 use crate::constants::*;
@@ -11,12 +13,14 @@ use crate::storage::basic_storage;
 use crate::Drop;
 use crate::{Contract, ContractExt};
 
-#[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh, json])]
+#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[near(serializers = [json])]
+#[borsh(crate = "near_sdk::borsh")]
 pub struct NFTDrop {
     funder: AccountId,
     token_id: String,
     nft_contract: AccountId,
+    public_key: PublicKey,
 }
 
 impl Dropper for NFTDrop {
@@ -57,11 +61,12 @@ pub fn required_deposit() -> NearToken {
         .saturating_add(ACCESS_KEY_STORAGE)
 }
 
-pub fn create(funder: AccountId, nft_contract: AccountId) -> Drop {
+pub fn create(funder: AccountId, nft_contract: AccountId, public_key: PublicKey) -> Drop {
     Drop::NFT(NFTDrop {
         funder,
         nft_contract,
         token_id: "".to_string(),
+        public_key,
     })
 }
 
@@ -83,6 +88,7 @@ impl Contract {
             funder,
             nft_contract,
             token_id: _,
+            public_key,
         }) = &drop
         {
             assert!(
@@ -97,6 +103,7 @@ impl Contract {
                     funder: funder.clone(),
                     nft_contract: nft_contract.clone(),
                     token_id: token_id_to_drop,
+                    public_key: public_key.clone(),
                 }),
             )
         } else {

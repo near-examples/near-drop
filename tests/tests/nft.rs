@@ -41,6 +41,13 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .await?;
     assert!(approve_res.is_success());
 
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_success());
+
     // instantiate a new version of the contract, using the secret key
     let claimer: Account =
         Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
@@ -96,6 +103,13 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(create_result.is_success());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_success());
 
     let approve_res = creator
         .call(nft_contract.id(), "nft_approve")

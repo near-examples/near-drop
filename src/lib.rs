@@ -72,7 +72,7 @@ impl Contract {
         let drop = near_drop::create(
             funder,
             NearToken::from_yoctonear(amount_per_drop.0),
-            public_keys.len().try_into().unwrap(),
+            public_keys.clone(),
         );
 
         self.save_drop_by_id(drop_id.clone(), drop);
@@ -109,7 +109,7 @@ impl Contract {
             funder,
             ft_contract,
             NearToken::from_yoctonear(amount_per_drop.0),
-            public_keys.len().try_into().unwrap(),
+            public_keys.clone(),
         );
         self.save_drop_by_id(drop_id.clone(), drop);
         self.save_drop_id_by_keys(public_keys, drop_id);
@@ -136,9 +136,24 @@ impl Contract {
         }
 
         let funder = env::predecessor_account_id();
-        let drop = nft_drop::create(funder, nft_contract);
+        let drop = nft_drop::create(funder, nft_contract, public_key.clone());
         self.save_drop_by_id(drop_id.clone(), drop);
         self.save_drop_id_by_key(public_key, drop_id);
+    }
+
+    #[payable]
+    pub fn delete_drop_by_id(&mut self, drop_id: DropId) -> Drop {
+        self.drop_by_id
+            .get(&drop_id)
+            .expect("No drop information for drop_id")
+            .to_owned()
+    }
+
+    pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {
+        self.drop_by_id
+            .get(&drop_id)
+            .expect("No drop information for drop_id")
+            .to_owned()
     }
 
     fn save_drop_id_by_key(&mut self, public_key: PublicKey, drop_id: DropId) -> Promise {
@@ -161,12 +176,5 @@ impl Contract {
 
     fn save_drop_by_id(&mut self, drop_id: DropId, drop: Drop) {
         self.drop_by_id.insert(drop_id, drop);
-    }
-
-    pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {
-        self.drop_by_id
-            .get(&drop_id)
-            .expect("No drop information for drop_id")
-            .to_owned()
     }
 }

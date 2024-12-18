@@ -1,7 +1,9 @@
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
     env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
+    PublicKey,
 };
 
 use crate::constants::*;
@@ -12,13 +14,15 @@ use crate::{Contract, ContractExt};
 
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
-#[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh, json])]
+#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[near(serializers = [json])]
+#[borsh(crate = "near_sdk::borsh")]
 pub struct FTDrop {
     funder: AccountId,
     amount: NearToken,
     ft_contract: AccountId,
     counter: u64,
+    public_keys: Vec<PublicKey>,
 }
 
 impl Dropper for FTDrop {
@@ -96,7 +100,7 @@ pub fn create(
     funder: AccountId,
     ft_contract: AccountId,
     amount_per_drop: NearToken,
-    counter: u64,
+    public_keys: Vec<PublicKey>,
 ) -> Drop {
     let attached = env::attached_deposit();
     let required = basic_storage()
@@ -115,7 +119,8 @@ pub fn create(
         funder,
         ft_contract,
         amount: amount_per_drop,
-        counter,
+        public_keys: public_keys.clone(),
+        counter: public_keys.len().try_into().unwrap(),
     })
 }
 
@@ -145,6 +150,7 @@ impl Contract {
             ft_contract,
             amount,
             counter,
+            public_keys,
         }) = &drop
         {
             assert_eq!(
@@ -160,6 +166,7 @@ impl Contract {
                     ft_contract: ft_contract.clone(),
                     amount: amount.clone(),
                     counter: counter.clone(),
+                    public_keys: public_keys.clone(),
                 }),
             )
         } else {

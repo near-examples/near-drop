@@ -38,6 +38,14 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .await?;
     assert!(create_result.is_success());
 
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    println!("drop: {:?}", drop);
+    assert!(drop.is_success());
+
     // instantiate a new version of the contract, using the secret key
     let claimer_1: Account =
         Account::from_secret_key(contract.id().clone(), secret_key_1.clone(), &worker);
@@ -123,6 +131,13 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(create_result.is_success());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_success());
 
     // instantiate a new version of the contract, using the secret key
     let claimer: Account =

@@ -1,16 +1,19 @@
-use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
+use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError, PublicKey};
 
 use crate::constants::*;
 use crate::drop_types::{Dropper, Getters, Setters};
 use crate::storage::basic_storage;
 use crate::{Contract, ContractExt, Drop};
 
-#[derive(PartialEq, Clone, Debug)]
-#[near(serializers = [borsh, json])]
+#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[near(serializers = [json])]
+#[borsh(crate = "near_sdk::borsh")]
 pub struct NearDrop {
     funder: AccountId,
     amount: NearToken,
     counter: u64,
+    public_keys: Vec<PublicKey>,
 }
 
 impl Dropper for NearDrop {
@@ -51,11 +54,12 @@ pub fn required_deposit(drop_amount: NearToken) -> NearToken {
         .saturating_add(ACCESS_KEY_STORAGE)
 }
 
-pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> Drop {
+pub fn create(funder: AccountId, amount: NearToken, public_keys: Vec<PublicKey>) -> Drop {
     Drop::NEAR(NearDrop {
         funder,
         amount,
-        counter,
+        public_keys: public_keys.clone(),
+        counter: public_keys.len().try_into().unwrap(),
     })
 }
 
