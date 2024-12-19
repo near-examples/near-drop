@@ -117,8 +117,6 @@ pub fn create(
         "Please attach exactly {required}. You attached {attached}"
     );
 
-    // TODO: Add refund
-
     Drop::FT(FTDrop {
         funder,
         ft_contract,
@@ -145,8 +143,6 @@ impl Contract {
             amount, required_amount,
             "Wrong FT amount, expected {required_amount}"
         );
-
-        // did you transfer counter * drop.amount?????
 
         // Make sure the drop exists
         if let Drop::FT(FTDrop {

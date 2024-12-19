@@ -65,7 +65,7 @@ impl Contract {
         }
         assert!(
             NearToken::from_yoctonear(amount_per_drop.0).ge(&NearToken::from_yoctonear(1)),
-            "Give at least 1 yN" // TODO Proper message about required amount_per_drop at least 1
+            "Amount per drop should be at least 1 yN"
         );
 
         let funder = env::predecessor_account_id();
@@ -101,7 +101,7 @@ impl Contract {
         }
         assert!(
             NearToken::from_yoctonear(amount_per_drop.0).ge(&NearToken::from_yoctonear(1)),
-            "Give at least 1 yN" // TODO Proper message about required amount_per_drop at least 1
+            "Amount per drop should be at least 1 token"
         );
 
         let funder = env::predecessor_account_id();
@@ -151,28 +151,28 @@ impl Contract {
         let drop = self
             .drop_by_id
             .remove(&drop_id)
-            .expect("No drop information for drop_id");
+            .expect("No drop information for such drop_id");
 
         let public_keys = drop.get_public_keys().unwrap();
 
         for public_key in public_keys.iter() {
             self.drop_id_by_key
                 .remove(public_key)
-                .expect("No drop for this key");
+                .expect("No drop for public key");
         }
     }
 
     pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {
         self.drop_by_id
             .get(&drop_id)
-            .expect("No drop information for drop_id")
+            .expect("No drop information for such drop_id")
             .to_owned()
     }
 
     pub fn get_drop_id_by_key(&self, public_key: &PublicKey) -> DropId {
         self.drop_id_by_key
             .get(public_key)
-            .expect("No drop for this key")
+            .expect("No drop for public key")
             .into()
     }
 

@@ -18,7 +18,7 @@ impl Contract {
         let public_key = env::signer_account_pk();
 
         if let None = self.drop_id_by_key.get(&public_key) {
-            panic!("No drop for this key")
+            panic!("No drop for public key")
         }
 
         let create_args = json!({ "new_account_id": account_id, "new_public_key": public_key })
@@ -65,12 +65,12 @@ impl Contract {
         let drop_id = self
             .drop_id_by_key
             .remove(&public_key)
-            .expect("The drop was not found");
+            .expect("No drop for public key");
 
         let drop = self
             .drop_by_id
             .remove(&drop_id)
-            .expect("No drop information for drop_id");
+            .expect("No drop information for such drop_id");
         let counter = drop.get_counter().unwrap_or(1);
         let updated_counter = counter - 1;
 
