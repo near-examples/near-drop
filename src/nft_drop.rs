@@ -8,7 +8,7 @@ use near_sdk::{
 };
 
 use crate::constants::*;
-use crate::drop_types::Dropper;
+use crate::drop_types::{Dropper, Getters};
 use crate::storage::basic_storage;
 use crate::Drop;
 use crate::{Contract, ContractExt};
@@ -51,6 +51,19 @@ impl Dropper for NFTDrop {
                 self.token_id.clone(),
                 self.nft_contract.clone(),
             )
+    }
+}
+
+impl Getters for NFTDrop {
+    fn get_counter(&self) -> Result<u64, &str> {
+        Err("There is no counter field for NFT drop structure")
+    }
+
+    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
+        Err("There is no amount_per_drop field for NFT drop structure")
+    }
+    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
+        Ok(vec![self.public_key.clone()])
     }
 }
 

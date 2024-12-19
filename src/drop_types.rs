@@ -1,5 +1,5 @@
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{near, AccountId, NearToken, Promise};
+use near_sdk::{near, AccountId, NearToken, Promise, PublicKey};
 
 use crate::ft_drop::FTDrop;
 use crate::near_drop::NearDrop;
@@ -22,6 +22,7 @@ pub trait Dropper {
 pub trait Getters {
     fn get_amount_per_drop(&self) -> Result<NearToken, &str>;
     fn get_counter(&self) -> Result<u64, &str>;
+    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str>;
 }
 
 pub trait Setters {
@@ -60,6 +61,14 @@ impl Getters for Drop {
             Drop::NEAR(near_drop) => near_drop.get_counter(),
             Drop::FT(ft_drop) => ft_drop.get_counter(),
             _ => Err("There is no amount_per_drop field for NFT drop structure"),
+        }
+    }
+
+    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
+        match self {
+            Drop::NEAR(near_drop) => near_drop.get_public_keys(),
+            Drop::FT(ft_drop) => ft_drop.get_public_keys(),
+            Drop::NFT(nft_drop) => nft_drop.get_public_keys(),
         }
     }
 }

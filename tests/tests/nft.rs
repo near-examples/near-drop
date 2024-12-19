@@ -165,3 +165,68 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn delete_drop() -> anyhow::Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let root = worker.root_account().unwrap();
+
+    let (contract, creator, _) = init(&worker, &root).await?;
+    let (nft_contract, _) = init_nft_contract(&worker, &creator).await?;
+
+    let drop_id = "1";
+
+    // Generate the secret key
+    let secret_key = SecretKey::from_random(KeyType::ED25519);
+
+    // Creator initiates a call to create a NEAR drop
+    let create_result = creator
+      .call(contract.id(), "create_nft_drop")
+      .args_json(
+        json!({"drop_id": drop_id, "public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}),
+      )
+      .deposit(NearToken::from_millinear(407))
+      .max_gas()
+      .transact()
+      .await?;
+    assert!(create_result.is_success());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_success());
+
+    let get_drop_result = creator
+        .call(contract.id(), "get_drop_id_by_key")
+        .args_json(json!({"public_key": secret_key.public_key()}))
+        .transact()
+        .await?;
+    assert!(get_drop_result.is_success());
+
+    let delete_drop_result = creator
+        .call(contract.id(), "delete_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(delete_drop_result.is_success());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
+
+    let drop_id_result = creator
+        .call(contract.id(), "get_drop_id_by_key")
+        .args_json(json!({"public_key": secret_key.public_key()}))
+        .transact()
+        .await?;
+    assert!(drop_id_result.is_failure());
+
+    Ok(())
+}

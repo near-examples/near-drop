@@ -1,5 +1,5 @@
 use constants::{DropId, ACCESS_KEY_ALLOWANCE};
-use drop_types::Drop;
+use drop_types::{Drop, Getters};
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{
@@ -142,11 +142,24 @@ impl Contract {
     }
 
     #[payable]
-    pub fn delete_drop_by_id(&mut self, drop_id: DropId) -> Drop {
-        self.drop_by_id
-            .get(&drop_id)
-            .expect("No drop information for drop_id")
-            .to_owned()
+    pub fn delete_drop_by_id(&mut self, drop_id: DropId) {
+        assert!(
+            env::attached_deposit().ge(&NearToken::from_yoctonear(1)),
+            "Attach at least 1 yN"
+        );
+
+        let drop = self
+            .drop_by_id
+            .remove(&drop_id)
+            .expect("No drop information for drop_id");
+
+        let public_keys = drop.get_public_keys().unwrap();
+
+        for public_key in public_keys.iter() {
+            self.drop_id_by_key
+                .remove(public_key)
+                .expect("No drop for this key");
+        }
     }
 
     pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {
@@ -154,6 +167,13 @@ impl Contract {
             .get(&drop_id)
             .expect("No drop information for drop_id")
             .to_owned()
+    }
+
+    pub fn get_drop_id_by_key(&self, public_key: &PublicKey) -> DropId {
+        self.drop_id_by_key
+            .get(public_key)
+            .expect("No drop for this key")
+            .into()
     }
 
     fn save_drop_id_by_key(&mut self, public_key: PublicKey, drop_id: DropId) -> Promise {

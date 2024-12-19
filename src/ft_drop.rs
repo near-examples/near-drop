@@ -80,6 +80,10 @@ impl Getters for FTDrop {
     fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
         Ok(self.amount)
     }
+
+    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
+        Ok(self.public_keys.clone())
+    }
 }
 
 impl Setters for FTDrop {

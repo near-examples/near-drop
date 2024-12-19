@@ -212,3 +212,74 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn delete_drop() -> anyhow::Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let root = worker.root_account().unwrap();
+
+    let (contract, creator, _) = init(&worker, &root).await?;
+    let ft_contract = init_ft_contract(&worker, &creator).await?;
+
+    let drop_id = "1";
+    let amount_per_drop = NearToken::from_yoctonear(1);
+
+    // Create a random secret keys
+    let secret_key_1 = SecretKey::from_random(KeyType::ED25519);
+    let secret_key_2 = SecretKey::from_random(KeyType::ED25519);
+    let public_keys = [secret_key_1.public_key(), secret_key_2.public_key()];
+
+    let create_result = creator
+        .call(contract.id(), "create_ft_drop")
+        .args_json(json!({"drop_id": drop_id, "public_keys": public_keys, "ft_contract": ft_contract.id(), "amount_per_drop": amount_per_drop}))
+        .deposit(NearToken::from_millinear(407))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(create_result.is_success());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_success());
+
+    let get_drop_result = creator
+        .call(contract.id(), "get_drop_id_by_key")
+        .args_json(json!({"public_key": secret_key_1.public_key()}))
+        .transact()
+        .await?;
+    assert!(get_drop_result.is_success());
+
+    let delete_drop_result = creator
+        .call(contract.id(), "delete_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(delete_drop_result.is_success());
+
+    let drop = creator
+        .call(contract.id(), "get_drop_by_id")
+        .args_json(json!({"drop_id": drop_id}))
+        .transact()
+        .await?;
+    assert!(drop.is_failure());
+
+    let drop_id_result_1 = creator
+        .call(contract.id(), "get_drop_id_by_key")
+        .args_json(json!({"public_key": secret_key_1.public_key()}))
+        .transact()
+        .await?;
+    assert!(drop_id_result_1.is_failure());
+
+    let drop_id_result_2 = creator
+        .call(contract.id(), "get_drop_id_by_key")
+        .args_json(json!({"public_key": secret_key_2.public_key()}))
+        .transact()
+        .await?;
+    assert!(drop_id_result_2.is_failure());
+    Ok(())
+}
