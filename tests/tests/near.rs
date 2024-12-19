@@ -27,7 +27,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let secret_key_2 = SecretKey::from_random(KeyType::ED25519);
 
     // Creator initiates a call to create a NEAR drop
-    let create_result = creator
+    let create_drop_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
             json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop, "counter": "2"}),
@@ -36,14 +36,14 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
-    assert!(create_result.is_success());
+    assert!(create_drop_result.is_success());
 
-    let drop = creator
+    let get_drop_result_1 = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
         .await?;
-    assert!(drop.is_success());
+    assert!(get_drop_result_1.is_success());
 
     // instantiate a new version of the contract, using the secret key
     let claimer_1: Account =
@@ -84,20 +84,20 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     assert!(contract_balance_after.ge(&contract_balance_before));
 
     // Try to claim the drop again with the same key and check it fails
-    let claim_result = claimer_1
+    let claim_result_3 = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
         .max_gas()
         .transact()
         .await?;
-    assert!(claim_result.is_failure());
+    assert!(claim_result_3.is_failure());
 
-    let drop = creator
+    let get_drop_result_2 = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
         .await?;
-    assert!(drop.is_failure());
+    assert!(get_drop_result_2.is_failure());
 
     Ok(())
 }
@@ -120,7 +120,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let public_keys = vec![secret_key.public_key()];
 
     // Creator initiates a call to create a NEAR drop
-    let create_result = creator
+    let create_drop_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
             json!({"drop_id": drop_id, "public_keys": public_keys, "amount_per_drop": amount_per_drop}),
@@ -129,14 +129,14 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
-    assert!(create_result.is_success());
+    assert!(create_drop_result.is_success());
 
-    let drop = creator
+    let get_drop_result_1 = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
         .await?;
-    assert!(drop.is_success());
+    assert!(get_drop_result_1.is_success());
 
     // instantiate a new version of the contract, using the secret key
     let claimer: Account =
@@ -175,12 +175,12 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     // Ideally there should be no surplus in the contract
     assert!(contract_balance_after.ge(&contract_balance_before));
 
-    let drop = creator
+    let get_drop_result_2 = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
         .await?;
-    assert!(drop.is_failure());
+    assert!(get_drop_result_2.is_failure());
 
     Ok(())
 }
@@ -202,7 +202,7 @@ async fn delete_drop() -> anyhow::Result<()> {
     let secret_key_2 = SecretKey::from_random(KeyType::ED25519);
 
     // Creator initiates a call to create a NEAR drop
-    let create_result = creator
+    let create_drop_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
             json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop, "counter": "2"}),
@@ -211,21 +211,21 @@ async fn delete_drop() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
-    assert!(create_result.is_success());
+    assert!(create_drop_result.is_success());
 
-    let drop = creator
+    let get_drop_result_1 = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
         .await?;
-    assert!(drop.is_success());
+    assert!(get_drop_result_1.is_success());
 
-    let get_drop_result = creator
+    let get_drop_result_2 = creator
         .call(contract.id(), "get_drop_id_by_key")
         .args_json(json!({"public_key": secret_key_1.public_key()}))
         .transact()
         .await?;
-    assert!(get_drop_result.is_success());
+    assert!(get_drop_result_2.is_success());
 
     let delete_drop_result = creator
         .call(contract.id(), "delete_drop_by_id")
@@ -236,25 +236,25 @@ async fn delete_drop() -> anyhow::Result<()> {
         .await?;
     assert!(delete_drop_result.is_success());
 
-    let drop = creator
+    let get_drop_result_3 = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
         .await?;
-    assert!(drop.is_failure());
+    assert!(get_drop_result_3.is_failure());
 
-    let drop_id_result_1 = creator
+    let get_drop_result_4 = creator
         .call(contract.id(), "get_drop_id_by_key")
         .args_json(json!({"public_key": secret_key_1.public_key()}))
         .transact()
         .await?;
-    assert!(drop_id_result_1.is_failure());
+    assert!(get_drop_result_4.is_failure());
 
-    let drop_id_result_2 = creator
+    let get_drop_result_5 = creator
         .call(contract.id(), "get_drop_id_by_key")
         .args_json(json!({"public_key": secret_key_2.public_key()}))
         .transact()
         .await?;
-    assert!(drop_id_result_2.is_failure());
+    assert!(get_drop_result_5.is_failure());
     Ok(())
 }
