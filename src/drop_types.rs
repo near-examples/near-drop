@@ -5,7 +5,7 @@ use crate::ft_drop::FTDrop;
 use crate::near_drop::NearDrop;
 use crate::nft_drop::NFTDrop;
 
-#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Debug, BorshDeserialize, BorshSerialize)]
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub enum Drop {

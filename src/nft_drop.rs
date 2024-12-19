@@ -13,7 +13,7 @@ use crate::storage::basic_storage;
 use crate::Drop;
 use crate::{Contract, ContractExt};
 
-#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Debug, BorshDeserialize, BorshSerialize)]
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub struct NFTDrop {

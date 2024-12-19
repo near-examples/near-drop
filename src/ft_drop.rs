@@ -14,7 +14,7 @@ use crate::{Contract, ContractExt};
 
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
 
-#[derive(PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(Clone, Debug, BorshDeserialize, BorshSerialize)]
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub struct FTDrop {
