@@ -1,5 +1,5 @@
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{near, AccountId, NearToken, Promise, PublicKey};
+use near_sdk::{near, AccountId, NearToken, Promise};
 
 use crate::ft_drop::FTDrop;
 use crate::near_drop::NearDrop;
@@ -22,12 +22,10 @@ pub trait Dropper {
 pub trait Getters {
     fn get_amount_per_drop(&self) -> Result<NearToken, &str>;
     fn get_counter(&self) -> Result<u64, &str>;
-    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str>;
 }
 
 pub trait Setters {
     fn set_counter(&mut self, value: u64) -> Result<(), &str>;
-    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str>;
 }
 
 impl Dropper for Drop {
@@ -64,14 +62,6 @@ impl Getters for Drop {
             _ => Err("There is no amount_per_drop field for NFT drop structure"),
         }
     }
-
-    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
-        match self {
-            Drop::NEAR(near_drop) => near_drop.get_public_keys(),
-            Drop::FT(ft_drop) => ft_drop.get_public_keys(),
-            Drop::NFT(nft_drop) => nft_drop.get_public_keys(),
-        }
-    }
 }
 
 impl Setters for Drop {
@@ -80,14 +70,6 @@ impl Setters for Drop {
             Drop::NEAR(near_drop) => near_drop.set_counter(value),
             Drop::FT(ft_drop) => ft_drop.set_counter(value),
             _ => Err("There is no counter field for NFT drop structure"),
-        }
-    }
-
-    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str> {
-        match self {
-            Drop::NEAR(near_drop) => near_drop.set_public_keys(public_keys),
-            Drop::FT(ft_drop) => ft_drop.set_public_keys(public_keys),
-            _ => Err("There is no way to update public_key for a NFT drop"),
         }
     }
 }

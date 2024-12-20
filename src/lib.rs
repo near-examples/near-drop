@@ -1,5 +1,5 @@
 use constants::{DropId, ACCESS_KEY_ALLOWANCE};
-use drop_types::{Drop, Getters};
+use drop_types::Drop;
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{
@@ -72,7 +72,7 @@ impl Contract {
         let drop = near_drop::create(
             funder,
             NearToken::from_yoctonear(amount_per_drop.0),
-            public_keys.clone(),
+            public_keys.len().try_into().unwrap(),
         );
 
         self.save_drop_by_id(drop_id.clone(), drop);
@@ -109,7 +109,7 @@ impl Contract {
             funder,
             ft_contract,
             NearToken::from_yoctonear(amount_per_drop.0),
-            public_keys.clone(),
+            public_keys.len().try_into().unwrap(),
         );
         self.save_drop_by_id(drop_id.clone(), drop);
         self.save_drop_id_by_keys(public_keys, drop_id);
@@ -136,30 +136,9 @@ impl Contract {
         }
 
         let funder = env::predecessor_account_id();
-        let drop = nft_drop::create(funder, nft_contract, public_key.clone());
+        let drop = nft_drop::create(funder, nft_contract);
         self.save_drop_by_id(drop_id.clone(), drop);
         self.save_drop_id_by_key(public_key, drop_id);
-    }
-
-    #[payable]
-    pub fn delete_drop_by_id(&mut self, drop_id: DropId) {
-        assert!(
-            env::attached_deposit().ge(&NearToken::from_yoctonear(1)),
-            "Attach at least 1 yN"
-        );
-
-        let drop = self
-            .drop_by_id
-            .remove(&drop_id)
-            .expect("No drop information for such drop_id");
-
-        let public_keys = drop.get_public_keys().unwrap();
-
-        for public_key in public_keys.iter() {
-            self.drop_id_by_key
-                .remove(public_key)
-                .expect("No drop for public key");
-        }
     }
 
     pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {

@@ -4,7 +4,6 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
     env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
-    PublicKey,
 };
 
 use crate::constants::*;
@@ -20,7 +19,6 @@ pub struct NFTDrop {
     funder: AccountId,
     token_id: String,
     nft_contract: AccountId,
-    public_key: PublicKey,
 }
 
 impl Dropper for NFTDrop {
@@ -62,9 +60,6 @@ impl Getters for NFTDrop {
     fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
         Err("There is no amount_per_drop field for NFT drop structure")
     }
-    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
-        Ok(vec![self.public_key.clone()])
-    }
 }
 
 pub fn required_deposit() -> NearToken {
@@ -74,12 +69,11 @@ pub fn required_deposit() -> NearToken {
         .saturating_add(ACCESS_KEY_STORAGE)
 }
 
-pub fn create(funder: AccountId, nft_contract: AccountId, public_key: PublicKey) -> Drop {
+pub fn create(funder: AccountId, nft_contract: AccountId) -> Drop {
     Drop::NFT(NFTDrop {
         funder,
         nft_contract,
         token_id: "".to_string(),
-        public_key,
     })
 }
 
@@ -101,7 +95,6 @@ impl Contract {
             funder,
             nft_contract,
             token_id: _,
-            public_key,
         }) = &drop
         {
             assert!(
@@ -116,7 +109,6 @@ impl Contract {
                     funder: funder.clone(),
                     nft_contract: nft_contract.clone(),
                     token_id: token_id_to_drop,
-                    public_key: public_key.clone(),
                 }),
             )
         } else {

@@ -3,7 +3,6 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
     env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
-    PublicKey,
 };
 
 use crate::constants::*;
@@ -22,7 +21,6 @@ pub struct FTDrop {
     amount: NearToken,
     ft_contract: AccountId,
     counter: u64,
-    public_keys: Vec<PublicKey>,
 }
 
 impl Dropper for FTDrop {
@@ -80,20 +78,11 @@ impl Getters for FTDrop {
     fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
         Ok(self.amount)
     }
-
-    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
-        Ok(self.public_keys.clone())
-    }
 }
 
 impl Setters for FTDrop {
     fn set_counter(&mut self, value: u64) -> Result<(), &str> {
         self.counter = value;
-        Ok(())
-    }
-
-    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str> {
-        self.public_keys = public_keys;
         Ok(())
     }
 }
@@ -109,7 +98,7 @@ pub fn create(
     funder: AccountId,
     ft_contract: AccountId,
     amount_per_drop: NearToken,
-    public_keys: Vec<PublicKey>,
+    counter: u64,
 ) -> Drop {
     let attached = env::attached_deposit();
     let required = basic_storage()
@@ -126,8 +115,7 @@ pub fn create(
         funder,
         ft_contract,
         amount: amount_per_drop,
-        public_keys: public_keys.clone(),
-        counter: public_keys.len().try_into().unwrap(),
+        counter,
     })
 }
 
@@ -155,7 +143,6 @@ impl Contract {
             ft_contract,
             amount,
             counter,
-            public_keys,
         }) = &drop
         {
             assert_eq!(
@@ -171,7 +158,6 @@ impl Contract {
                     ft_contract: ft_contract.clone(),
                     amount: amount.clone(),
                     counter: counter.clone(),
-                    public_keys: public_keys.clone(),
                 }),
             )
         } else {

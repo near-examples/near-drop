@@ -1,5 +1,5 @@
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError, PublicKey};
+use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 use crate::constants::*;
 use crate::drop_types::{Dropper, Getters, Setters};
@@ -13,7 +13,6 @@ pub struct NearDrop {
     funder: AccountId,
     amount: NearToken,
     counter: u64,
-    public_keys: Vec<PublicKey>,
 }
 
 impl Dropper for NearDrop {
@@ -37,19 +36,11 @@ impl Getters for NearDrop {
     fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
         Ok(self.amount)
     }
-
-    fn get_public_keys(&self) -> Result<Vec<PublicKey>, &str> {
-        Ok(self.public_keys.clone())
-    }
 }
 
 impl Setters for NearDrop {
     fn set_counter(&mut self, value: u64) -> Result<(), &str> {
         self.counter = value;
-        Ok(())
-    }
-    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str> {
-        self.public_keys = public_keys;
         Ok(())
     }
 }
@@ -62,12 +53,11 @@ pub fn required_deposit(drop_amount: NearToken) -> NearToken {
         .saturating_add(ACCESS_KEY_STORAGE)
 }
 
-pub fn create(funder: AccountId, amount: NearToken, public_keys: Vec<PublicKey>) -> Drop {
+pub fn create(funder: AccountId, amount: NearToken, counter: u64) -> Drop {
     Drop::NEAR(NearDrop {
         funder,
         amount,
-        public_keys: public_keys.clone(),
-        counter: public_keys.len().try_into().unwrap(),
+        counter,
     })
 }
 
