@@ -75,8 +75,14 @@ impl Contract {
         let updated_counter = counter - 1;
 
         if updated_counter > 0 {
+            let mut public_keys = drop.get_public_keys().unwrap();
+            let public_key_index = public_keys.iter().position(|x| *x == public_key).unwrap();
+            public_keys.remove(public_key_index);
+
             let mut updated_drop = drop.clone();
             let _ = updated_drop.set_counter(updated_counter);
+            let _ = updated_drop.set_public_keys(public_keys);
+
             self.drop_by_id.insert(drop_id.clone(), updated_drop);
         }
 

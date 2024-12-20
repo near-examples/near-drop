@@ -48,6 +48,10 @@ impl Setters for NearDrop {
         self.counter = value;
         Ok(())
     }
+    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str> {
+        self.public_keys = public_keys;
+        Ok(())
+    }
 }
 
 pub fn required_deposit(drop_amount: NearToken) -> NearToken {

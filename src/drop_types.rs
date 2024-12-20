@@ -27,6 +27,7 @@ pub trait Getters {
 
 pub trait Setters {
     fn set_counter(&mut self, value: u64) -> Result<(), &str>;
+    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str>;
 }
 
 impl Dropper for Drop {
@@ -79,6 +80,14 @@ impl Setters for Drop {
             Drop::NEAR(near_drop) => near_drop.set_counter(value),
             Drop::FT(ft_drop) => ft_drop.set_counter(value),
             _ => Err("There is no counter field for NFT drop structure"),
+        }
+    }
+
+    fn set_public_keys(&mut self, public_keys: Vec<PublicKey>) -> Result<(), &str> {
+        match self {
+            Drop::NEAR(near_drop) => near_drop.set_public_keys(public_keys),
+            Drop::FT(ft_drop) => ft_drop.set_public_keys(public_keys),
+            _ => Err("There is no way to update public_key for a NFT drop"),
         }
     }
 }
