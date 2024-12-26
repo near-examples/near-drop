@@ -26,11 +26,20 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let secret_key_1 = SecretKey::from_random(KeyType::ED25519);
     let secret_key_2 = SecretKey::from_random(KeyType::ED25519);
 
+    println!("secret_key_1: {}", secret_key_1);
+    println!("public_key_1: {}", secret_key_1.public_key());
+    println!("secret_key_2: {}", secret_key_2);
+    println!("public_key_2: {}", secret_key_2.public_key());
+
     // Creator initiates a call to create a NEAR drop
+    println!(
+        "{:?}",
+        json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop})
+    );
     let create_drop_result = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
-            json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop, "counter": "2"}),
+            json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}),
         )
         .deposit(NearToken::from_millinear(3410))
         .max_gas()
@@ -154,6 +163,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
+    println!("claim_result_1: {:?}", claim_result_1);
     assert!(claim_result_1.is_success());
 
     // Get balances after claiming the drop

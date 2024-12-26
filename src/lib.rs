@@ -58,6 +58,11 @@ impl Contract {
             "Please attach at least {required_deposit}"
         );
 
+        assert!(
+            self.drop_by_id.get(&drop_id).is_none(),
+            "Drop with ID {drop_id} already exists",
+        );
+
         let extra_deposit = attached_deposit.saturating_sub(required_deposit);
         if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
             // refund the user, we don't need that money
@@ -94,6 +99,11 @@ impl Contract {
             "Please attach at least {required_deposit}"
         );
 
+        assert!(
+            self.drop_by_id.get(&drop_id).is_none(),
+            "Drop with ID {drop_id} already exists",
+        );
+
         let extra_deposit = attached_deposit.saturating_sub(required_deposit);
         if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
             // refund the user, we don't need that money
@@ -127,6 +137,11 @@ impl Contract {
         assert!(
             attached_deposit >= required_deposit,
             "Please attach at least {required_deposit}"
+        );
+
+        assert!(
+            self.drop_by_id.get(&drop_id).is_none(),
+            "Drop with ID {drop_id} already exists",
         );
 
         let extra_deposit = attached_deposit.saturating_sub(required_deposit);

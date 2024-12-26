@@ -184,6 +184,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .max_gas()
         .transact()
         .await?;
+    println!("claim_result_1: {:?}", claim_result_1);
     assert!(claim_result_1.is_success());
 
     let long_account_ft_balance = ft_contract
