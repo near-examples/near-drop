@@ -17,10 +17,10 @@ const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub struct FTDrop {
-    funder: AccountId,
-    amount: NearToken,
-    ft_contract: AccountId,
-    counter: u64,
+    funder: AccountId,      // Account which created the drop and funded it
+    amount: NearToken,      // Reflects how much fungible tokens will be transfer to claiming user
+    ft_contract: AccountId, // Contract of fungible tokens which will be transfer to claiming user
+    counter: u64,           // Reflects how much times the drop can be claimed
 }
 
 impl Dropper for FTDrop {

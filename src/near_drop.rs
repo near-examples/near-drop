@@ -10,9 +10,9 @@ use crate::{Contract, ContractExt, Drop};
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub struct NearDrop {
-    funder: AccountId,
-    amount: NearToken,
-    counter: u64,
+    funder: AccountId, // An account which created the drop and funded it
+    amount: NearToken, // Reflects how much NEAR tokens will be transfer to claiming user
+    counter: u64,      // Reflects how much times the drop can be claimed
 }
 
 impl Dropper for NearDrop {

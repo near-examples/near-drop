@@ -16,9 +16,9 @@ use crate::{Contract, ContractExt};
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub struct NFTDrop {
-    funder: AccountId,
-    token_id: String,
-    nft_contract: AccountId,
+    funder: AccountId,       // Account which created the drop and funded it
+    token_id: String,        // Id of token which will be transfer to claiming user
+    nft_contract: AccountId, // Contract of non-fungible token which will be transfer to claiming user
 }
 
 impl Dropper for NFTDrop {

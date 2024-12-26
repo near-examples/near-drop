@@ -5,6 +5,7 @@ use crate::ft_drop::FTDrop;
 use crate::near_drop::NearDrop;
 use crate::nft_drop::NFTDrop;
 
+// This Drop enum stores drop details such as funder, amount to drop or token id, etc.
 #[derive(Clone, Debug, BorshDeserialize, BorshSerialize)]
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
