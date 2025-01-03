@@ -69,13 +69,13 @@ near call tight-achiever.testnet create_nft_drop '{"drop_id": "1", "public_key":
 ### Claim drop for an existing account
 
 ```bash
-near call <deployed-to-account> claim_for '{"account_id": "<existing-claimer-account-id>"}' --accountId <deployed-to-account>
+near contract call-function as-transaction <deployed-to-account> claim_for json-args '{"account_id": "<existing-claimer-account-id>"}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' sign-as <deployed-to-account> network-config testnet sign-with-plaintext-private-key --signer-public-key <public-key> --signer-private-key <private-key> send
 ```
 
 ### Claim drop for a new account
 
 ```bash
-near call <deployed-to-account> create_account_and_claim '{"account_id": "<new-claimer-account-id>"}' --accountId <deployed-to-account>
+near contract call-function as-transaction <deployed-to-account> create_account_and_claim json-args '{"account_id": "<new-claimer-account-id>"}' prepaid-gas '300.0 Tgas' attached-deposit '0 NEAR' sign-as <account-id> network-config testnet sign-with-plaintext-private-key --signer-public-key <public-key> --signer-private-key <private-key> send
 ```
 
 ## Useful Links
