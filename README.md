@@ -38,7 +38,7 @@ To create NEAR drop call 'create_near_drop' method and pass following parameters
 - `amount_per_drop` - amount of NEAR tokens to claim per drop
 
 ```bash
-near call <deployed-to-account> create_near_drop '{"drop_id": "1", "public_keys": ["ed25519:HcwvxZXSCX341Pe4vo9FLTzoRab9N8MWGZ2isxZjk1b8", "ed25519:5oN7Yk7FKQMKpuP4aroWgNoFfVDLnY3zmRnqYk9fuEvR"], "amount_per_drop": "100000000000000000000000"}' --accountId <creator-account-id> --deposit 1 --gas 300000000000000
+near call <deployed-to-account> create_near_drop '{"drop_id": "1", "public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "100000000000000000000000"}' --accountId <creator-account-id> --deposit 1 --gas 300000000000000
 ```
 
 ### Create FT drop
@@ -51,7 +51,7 @@ To create FT drop call 'create_ft_drop' method and pass following parameters:
 - `amount_per_drop` - amount of NEAR tokens to claim per drop
 
 ```bash
-near call tight-achiever.testnet create_ft_drop '{"drop_id": "1", "public_keys": ["ed25519:HcwvxZXSCX341Pe4vo9FLTzoRab9N8MWGZ2isxZjk1b8", "ed25519:5oN7Yk7FKQMKpuP4aroWgNoFfVDLnY3zmRnqYk9fuEvR"], "amount_per_drop": "1", "ft_contract": "ft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
+near call tight-achiever.testnet create_ft_drop '{"drop_id": "1", "public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "1", "ft_contract": "ft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
 ```
 
 ### Create NFT drop
@@ -63,7 +63,7 @@ To create NFT drop call 'create_ft_drop' method and pass following parameters:
 - `nft_contract` - NFT contract account
 
 ```bash
-near call tight-achiever.testnet create_nft_drop '{"drop_id": "1", "public_key": "ed25519:HcwvxZXSCX341Pe4vo9FLTzoRab9N8MWGZ2isxZjk1b8", "nft_contract": "nft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
+near call tight-achiever.testnet create_nft_drop '{"drop_id": "1", "public_key": "<public-key>", "nft_contract": "nft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
 ```
 
 ### Claim drop for an existing account
