@@ -4,7 +4,7 @@ use crate::drop_types::{Dropper, Getters, Setters};
 use crate::{Contract, ContractExt};
 
 use near_sdk::serde_json::json;
-use near_sdk::{env, near, AccountId, GasWeight, Promise, PromiseError};
+use near_sdk::{env, near, AccountId, GasWeight, Promise};
 
 #[near]
 impl Contract {
@@ -43,16 +43,8 @@ impl Contract {
     }
 
     #[private]
-    pub fn resolve_account_create(
-        &mut self,
-        account_id: AccountId,
-        #[callback_result] created: Result<(), PromiseError>,
-    ) -> Promise {
+    pub fn resolve_account_create(&mut self, account_id: AccountId) -> Promise {
         // The first step of creating an account has finished
-
-        if let Err(_) = created {
-            panic!("Creating account failed")
-        }
 
         // Creating the account was successful, we can continue with the claim
         self.internal_claim(account_id, true)

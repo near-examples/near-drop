@@ -1,5 +1,5 @@
 // Find all our documentation at https://docs.near.org
-use near_sdk::{env, log, near, AccountId, Promise, PromiseError, PublicKey};
+use near_sdk::{env, log, near, AccountId, Promise, PromiseError, PromiseResult, PublicKey};
 
 // Define the contract structure
 #[near(contract_state)]
@@ -9,6 +9,18 @@ pub struct Contract {}
 impl Default for Contract {
     fn default() -> Self {
         Self {}
+    }
+}
+
+fn is_promise_success() -> bool {
+    assert_eq!(
+        env::promise_results_count(),
+        1,
+        "Contract expected a result on the callback"
+    );
+    match env::promise_result(0) {
+        PromiseResult::Successful(_) => true,
+        _ => false,
     }
 }
 
@@ -24,11 +36,14 @@ impl Contract {
     }
 
     #[private]
-    pub fn create_account_callback(&self, #[callback_result] created: Result<(), PromiseError>) {
-        if let Ok(_) = created {
-            log!("create_account call successed");
-        } else {
-            log!("create_account call failed");
-        }
+    pub fn create_account_callback(&self) -> bool {
+        assert_eq!(
+            env::predecessor_account_id(),
+            env::current_account_id(),
+            "Callback can only be called from the contract"
+        );
+        let creation_succeeded = is_promise_success();
+
+        creation_succeeded
     }
 }
