@@ -4,7 +4,7 @@ use crate::drop_types::{Dropper, Getters, Setters};
 use crate::{Contract, ContractExt};
 
 use near_sdk::serde_json::json;
-use near_sdk::{env, near, AccountId, GasWeight, Promise, PromiseError};
+use near_sdk::{env, near, AccountId, Promise, PromiseError};
 
 #[near]
 impl Contract {
@@ -27,17 +27,15 @@ impl Contract {
             .to_vec();
 
         Promise::new(self.top_level_account.clone())
-            .function_call_weight(
+            .function_call(
                 "create_account".to_string(),
                 create_args,
                 CREATE_ACCOUNT_FEE,
                 GAS_FOR_CREATE_ACCOUNT,
-                GasWeight(0),
             )
             .then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(CREATE_CALLBACK_GAS)
-                    .with_unused_gas_weight(0)
                     .resolve_account_create(account_id),
             )
     }
@@ -57,7 +55,7 @@ impl Contract {
         self.internal_claim(account_id, true)
     }
 
-    fn internal_claim(&mut self, account_id: AccountId, created: bool) -> Promise {
+    fn internal_claim(&mut self, account_id: AccountId, account_created: bool) -> Promise {
         let public_key = env::signer_account_pk();
 
         // get the id for the public_key
@@ -72,15 +70,17 @@ impl Contract {
             .expect("No drop information for such drop_id");
         let counter = drop.get_counter().unwrap_or(1);
         let updated_counter = counter - 1;
+        let mut drop_deleted = true;
 
         if updated_counter > 0 {
             let mut updated_drop = drop.clone();
             let _ = updated_drop.set_counter(updated_counter);
 
             self.drop_by_id.insert(drop_id.clone(), updated_drop);
+            drop_deleted = false;
         }
 
         drop.promise_for_claiming(account_id)
-            .then(drop.promise_to_resolve_claim(created))
+            .then(drop.promise_to_resolve_claim(account_created, drop_deleted))
     }
 }

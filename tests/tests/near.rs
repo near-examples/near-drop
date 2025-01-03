@@ -15,7 +15,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
 
     // Get balances before creating/claiming a drop
     let alice_balance_before = get_user_balance(&alice).await;
-    let contract_balance_before = get_user_balance(contract.as_account()).await;
+    let contract_balance_before = get_user_balance(&contract).await;
 
     let drop_id = "1";
 
@@ -60,7 +60,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
 
     // Get balances after claiming the drop
     let alice_balance_after = get_user_balance(&alice).await;
-    let contract_balance_after = get_user_balance(contract.as_account()).await;
+    let contract_balance_after = get_user_balance(&contract).await;
 
     // Verify that Alice's balance after the claim is equal to her balance before plus the drop amount
     assert_eq!(
@@ -110,7 +110,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let (contract, creator, alice) = init(&worker, &root).await?;
 
     // Get contract balance before creating/claiming a drop
-    let contract_balance_before = get_user_balance(contract.as_account()).await;
+    let contract_balance_before = get_user_balance(&contract).await;
 
     let drop_id = "1";
     let amount_per_drop = NearToken::from_near(1);
@@ -158,7 +158,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
 
     // Get balances after claiming the drop
     let long_account_balance = get_user_balance(&long_account).await;
-    let contract_balance_after = get_user_balance(contract.as_account()).await;
+    let contract_balance_after = get_user_balance(&contract).await;
 
     // Verify that user's balance after the claim is equal to the drop amount
     assert_eq!(long_account_balance, amount_per_drop);

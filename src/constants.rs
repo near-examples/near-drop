@@ -1,6 +1,6 @@
 use near_sdk::{Gas, NearToken};
 
-pub type DropId = String;
+pub type DropId = u32;
 
 /*
     minimum amount of storage required to store an access key on the contract

@@ -5,12 +5,19 @@ use near_workspaces::{Account, Contract, DevNetwork, Worker};
 pub async fn init(
     worker: &Worker<impl DevNetwork>,
     root: &Account,
-) -> anyhow::Result<(Contract, Account, Account)> {
-    let wasm = near_workspaces::compile_project(".").await?;
-    let contract = worker.dev_deploy(&wasm).await?;
-
+) -> anyhow::Result<(Account, Account, Account)> {
     let root_wasm = near_workspaces::compile_project("./tests/contracts/root").await?;
     let _ = root.deploy(&root_wasm).await?;
+
+    let contract = root
+        .create_subaccount("contract")
+        .initial_balance(NearToken::from_yoctonear(182620304538970019274880u128 + 1418524372904400000000u128))
+        .transact()
+        .await?
+        .unwrap();
+
+    let wasm = near_workspaces::compile_project(".").await?;
+    contract.deploy(&wasm).await?;
 
     let creator = root
         .create_subaccount("creator")
@@ -21,7 +28,7 @@ pub async fn init(
     let alice = root.create_subaccount("alice").transact().await?.unwrap();
 
     let res = contract
-        .call("new")
+        .call(contract.id(), "new")
         .args_json(json!({"top_level_account": root.id()}))
         .max_gas()
         .transact()
