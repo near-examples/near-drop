@@ -4,41 +4,52 @@ use near_workspaces::types::{KeyType, SecretKey};
 use near_workspaces::Account;
 
 use crate::init::init;
-use crate::utils::get_user_balance;
+use crate::utils::{get_user_balance, INITIAL_CONTRACT_BALANCE};
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (contract, creator, alice) = init(&worker, &root).await?;
+    let (contract, creator, alice) = init(&worker, &root, INITIAL_CONTRACT_BALANCE).await?;
 
     // Get balances before creating/claiming a drop
     let alice_balance_before = get_user_balance(&alice).await;
     let contract_balance_before = get_user_balance(&contract).await;
 
-    let drop_id = "1";
-
     // Define the drop amount to be 1 NearToken
-    let amount_per_drop = NearToken::from_near(1);
+    let amount_per_drop = NearToken::from_millinear(100);
 
     // Create a random secret keys
     let secret_key_1 = SecretKey::from_random(KeyType::ED25519);
     let secret_key_2 = SecretKey::from_random(KeyType::ED25519);
 
     // Creator initiates a call to create a NEAR drop
-    let create_drop_result = creator
+    let create_near_drop_result_1 = creator
         .call(contract.id(), "create_near_drop")
         .args_json(
-            json!({"drop_id": drop_id, "public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}),
+            json!({"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}),
         )
-        .deposit(NearToken::from_millinear(3410))
+        .deposit(NearToken::from_millinear(2810))
         .max_gas()
         .transact()
         .await?;
-    assert!(create_drop_result.is_success());
+    let drop_id: serde_json::Value = create_near_drop_result_1.json().unwrap();
+    assert_eq!(drop_id, 0);
 
-    let get_drop_result_1 = creator
+    // Shouldn't create a drop with the same keys
+    let create_near_drop_result_2 = creator
+        .call(contract.id(), "create_near_drop")
+        .args_json(
+            json!({"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}),
+        )
+        .deposit(NearToken::from_millinear(2810))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(create_near_drop_result_2.is_failure());
+
+    let get_drop_result_1: near_workspaces::result::ExecutionFinalResult = creator
         .call(contract.id(), "get_drop_by_id")
         .args_json(json!({"drop_id": drop_id}))
         .transact()
@@ -59,12 +70,11 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     assert!(claim_result_1.is_success());
 
     // Get balances after claiming the drop
-    let alice_balance_after = get_user_balance(&alice).await;
-    let contract_balance_after = get_user_balance(&contract).await;
+    let alice_balance_after_claiming_drop_1 = get_user_balance(&alice).await;
 
     // Verify that Alice's balance after the claim is equal to her balance before plus the drop amount
     assert_eq!(
-        alice_balance_after,
+        alice_balance_after_claiming_drop_1,
         alice_balance_before.saturating_add(amount_per_drop),
         "user did not receive the claim amount"
     );
@@ -79,6 +89,17 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(claim_result_2.is_success());
+
+    // Get balances after claiming the drop
+    let alice_balance_after_claiming_drop_2 = get_user_balance(&alice).await;
+    let contract_balance_after = get_user_balance(&contract).await;
+
+    // Verify that Alice's balance after the claim is equal to her balance before plus the drop amount
+    assert_eq!(
+        alice_balance_after_claiming_drop_2,
+        alice_balance_after_claiming_drop_1.saturating_add(amount_per_drop),
+        "user did not receive the claim amount"
+    );
 
     // Ideally there should be no surplus in the contract
     assert!(contract_balance_after.ge(&contract_balance_before));
@@ -107,12 +128,11 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (contract, creator, alice) = init(&worker, &root).await?;
+    let (contract, creator, alice) = init(&worker, &root, INITIAL_CONTRACT_BALANCE).await?;
 
     // Get contract balance before creating/claiming a drop
     let contract_balance_before = get_user_balance(&contract).await;
 
-    let drop_id = "1";
     let amount_per_drop = NearToken::from_near(1);
 
     // Generate the secret key
@@ -120,16 +140,15 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let public_keys = vec![secret_key.public_key()];
 
     // Creator initiates a call to create a NEAR drop
-    let create_drop_result = creator
+    let create_near_drop_result = creator
         .call(contract.id(), "create_near_drop")
-        .args_json(
-            json!({"drop_id": drop_id, "public_keys": public_keys, "amount_per_drop": amount_per_drop}),
-        )
-        .deposit(NearToken::from_millinear(1500))
+        .args_json(json!({"public_keys": public_keys, "amount_per_drop": amount_per_drop}))
+        .deposit(NearToken::from_millinear(2810))
         .max_gas()
         .transact()
         .await?;
-    assert!(create_drop_result.is_success());
+    let drop_id: serde_json::Value = create_near_drop_result.json().unwrap();
+    assert_eq!(drop_id, 0);
 
     let get_drop_result_1 = creator
         .call(contract.id(), "get_drop_by_id")

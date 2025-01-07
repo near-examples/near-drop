@@ -25,7 +25,7 @@ enum StorageKey {
 #[near(contract_state)]
 pub struct Contract {
     pub top_level_account: AccountId,
-    pub last_drop_id: DropId,
+    pub next_drop_id: DropId,
     pub drop_by_id: LookupMap<DropId, Drop>,
     pub drop_id_by_key: LookupMap<PublicKey, DropId>,
 }
@@ -37,7 +37,7 @@ impl Contract {
     pub fn new(top_level_account: AccountId) -> Self {
         Self {
             top_level_account,
-            last_drop_id: 0,
+            next_drop_id: 0,
             drop_id_by_key: LookupMap::new(StorageKey::DropIdByKey),
             drop_by_id: LookupMap::new(StorageKey::DropById),
         }
@@ -50,6 +50,7 @@ impl Contract {
         amount_per_drop: NearToken,
     ) -> DropId {
         // check that the access keys are not already used
+        // TODO: add test for that case
         for public_key in public_keys.iter() {
             assert!(
                 self.drop_id_by_key.get(public_key).is_none(),
@@ -66,77 +67,42 @@ impl Contract {
         drop_id
     }
 
-    // #[payable]
-    // pub fn create_ft_drop(
-    //     &mut self,
-    //     drop_id: DropId,
-    //     public_keys: Vec<PublicKey>,
-    //     ft_contract: AccountId,
-    //     amount_per_drop: U128,
-    // ) {
-    //     let attached_deposit = env::attached_deposit();
-    //     let required_deposit = ft_drop::required_deposit();
-    //     assert!(
-    //         attached_deposit >= required_deposit,
-    //         "Please attach at least {required_deposit}"
-    //     );
+    #[payable]
+    pub fn create_ft_drop(
+        &mut self,
+        public_keys: Vec<PublicKey>,
+        ft_contract: AccountId,
+        amount_per_drop: NearToken,
+    ) -> DropId {
+        // check that the access keys are not already used
+        for public_key in public_keys.iter() {
+            assert!(
+                self.drop_id_by_key.get(public_key).is_none(),
+                "Public key is already used for a drop"
+            );
+        }
 
-    //     assert!(
-    //         self.drop_by_id.get(&drop_id).is_none(),
-    //         "Drop with ID {drop_id} already exists",
-    //     );
+        let num_of_keys = public_keys.len().try_into().unwrap();
+        let drop = ft_drop::create(ft_contract, amount_per_drop, num_of_keys);
+        let drop_id = self.save_drop(drop);
+        self.save_drop_id_by_keys(&public_keys, drop_id);
 
-    //     let extra_deposit = attached_deposit.saturating_sub(required_deposit);
-    //     if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
-    //         // refund the user, we don't need that money
-    //         Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
-    //     }
-    //     assert!(
-    //         NearToken::from_yoctonear(amount_per_drop.0).ge(&NearToken::from_yoctonear(1)),
-    //         "Amount per drop should be at least 1 token"
-    //     );
+        drop_id
+    }
 
-    //     let funder = env::predecessor_account_id();
-    //     let drop = ft_drop::create(
-    //         funder,
-    //         ft_contract,
-    //         NearToken::from_yoctonear(amount_per_drop.0),
-    //         public_keys.len().try_into().unwrap(),
-    //     );
-    //     self.save_drop_by_id(drop_id.clone(), drop);
-    //     self.save_drop_id_by_keys(&public_keys, drop_id);
-    // }
+    #[payable]
+    pub fn create_nft_drop(&mut self, public_key: PublicKey, nft_contract: AccountId) -> DropId {
+        assert!(
+            self.drop_id_by_key.get(&public_key).is_none(),
+            "Public key is already used for a drop"
+        );
 
-    // #[payable]
-    // pub fn create_nft_drop(
-    //     &mut self,
-    //     drop_id: DropId,
-    //     public_key: PublicKey,
-    //     nft_contract: AccountId,
-    // ) {
-    //     let attached_deposit = env::attached_deposit();
-    //     let required_deposit = nft_drop::required_deposit();
-    //     assert!(
-    //         attached_deposit >= required_deposit,
-    //         "Please attach at least {required_deposit}"
-    //     );
+        let drop = nft_drop::create(nft_contract);
+        let drop_id = self.save_drop(drop);
+        self.save_drop_id_by_key(public_key, drop_id);
 
-    //     assert!(
-    //         self.drop_by_id.get(&drop_id).is_none(),
-    //         "Drop with ID {drop_id} already exists",
-    //     );
-
-    //     let extra_deposit = attached_deposit.saturating_sub(required_deposit);
-    //     if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
-    //         // refund the user, we don't need that money
-    //         Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
-    //     }
-
-    //     let funder = env::predecessor_account_id();
-    //     let drop = nft_drop::create(funder, nft_contract);
-    //     self.save_drop_by_id(drop_id.clone(), drop);
-    //     self.save_drop_id_by_key(public_key, drop_id);
-    // }
+        drop_id
+    }
 
     pub fn get_drop_by_id(&self, drop_id: DropId) -> Drop {
         self.drop_by_id
@@ -171,9 +137,9 @@ impl Contract {
     }
 
     fn save_drop(&mut self, drop: Drop) -> DropId {
-        let used_id = self.last_drop_id;
-        self.drop_by_id.insert(used_id, drop);
-        self.last_drop_id += 1;
-        used_id
+        let drop_id = self.next_drop_id;
+        self.drop_by_id.insert(drop_id, drop);
+        self.next_drop_id += 1;
+        drop_id
     }
 }

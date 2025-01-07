@@ -1,3 +1,3 @@
-// mod ft;
+mod ft;
 mod near;
-// mod nft;
+mod nft;

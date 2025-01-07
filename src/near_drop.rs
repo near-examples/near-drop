@@ -1,9 +1,8 @@
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError, PublicKey};
+use near_sdk::{env, log, near, AccountId, NearToken, Promise, PromiseError, PublicKey};
 
 use crate::constants::*;
 use crate::drop_types::{Dropper, Getters, Setters};
-use crate::storage::{basic_storage, ACC_STORAGE, ENUM_STORAGE, ID_STORAGE, PK_STORAGE, TOKEN_STORAGE};
 use crate::{Contract, ContractExt, Drop};
 
 #[derive(Clone, Debug, BorshDeserialize, BorshSerialize)]
@@ -55,7 +54,7 @@ pub fn required_deposit_per_key(drop_amount: NearToken) -> NearToken {
 pub fn required_storage_drop(num_access_keys: u32) -> NearToken {
     NearToken::from_yoctonear(
         // DropId -> Drop::Near
-        ID_STORAGE + ENUM_STORAGE + ACC_STORAGE + TOKEN_STORAGE + 8 
+        ID_STORAGE + ENUM_STORAGE + ACC_STORAGE + TOKEN_AMOUNT_STORAGE + 8 
         // PublicKey -> DropId
         + num_access_keys as u128 * (PK_STORAGE + ID_STORAGE)
     )
@@ -65,8 +64,7 @@ pub fn create(amount_per_drop: NearToken, num_of_keys: u32) -> Drop {
     let funder = env::predecessor_account_id();
 
     let attached_deposit = env::attached_deposit();
-
-    let required_deposit = 
+    let required_deposit = // required_storage_drop + (required_deposit_per_key * num_of_keys)
         required_storage_drop(num_of_keys)
         .saturating_add(
             required_deposit_per_key(amount_per_drop)
@@ -99,7 +97,7 @@ pub fn create(amount_per_drop: NearToken, num_of_keys: u32) -> Drop {
 #[near]
 impl Contract {
     pub fn resolve_near_claim(
-        created: bool,
+      account_created: bool,
         drop_deleted: bool,
         funder: AccountId,
         amount: NearToken,
@@ -107,7 +105,7 @@ impl Contract {
     ) -> bool {
         let mut to_refund = ACCESS_KEY_STORAGE;
 
-        if !created {
+        if !account_created {
             to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
         }
 

@@ -1,23 +1,29 @@
 use near_contract_standards::non_fungible_token::TokenId;
-use near_sdk::{serde_json::json, NearToken};
+use near_sdk::{env, serde_json::json, NearToken};
 use near_workspaces::{Account, Contract, DevNetwork, Worker};
+
+pub const ACC_STORAGE: u128 = 4 + 8; // AccountId
 
 pub async fn init(
     worker: &Worker<impl DevNetwork>,
     root: &Account,
+    initial_contract_balance: NearToken,
 ) -> anyhow::Result<(Account, Account, Account)> {
     let root_wasm = near_workspaces::compile_project("./tests/contracts/root").await?;
     let _ = root.deploy(&root_wasm).await?;
 
     let contract = root
         .create_subaccount("contract")
-        .initial_balance(NearToken::from_yoctonear(182620304538970019274880u128 + 1418524372904400000000u128))
+        .initial_balance(
+            initial_contract_balance, //     .saturating_add(env::storage_byte_cost().saturating_mul(ACC_STORAGE)),
+        )
         .transact()
         .await?
         .unwrap();
 
     let wasm = near_workspaces::compile_project(".").await?;
-    contract.deploy(&wasm).await?;
+
+    let _ = contract.deploy(&wasm).await?.unwrap();
 
     let creator = root
         .create_subaccount("creator")
