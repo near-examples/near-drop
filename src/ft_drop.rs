@@ -20,6 +20,7 @@ pub struct FTDrop {
     amount: NearToken,      // Reflects how much fungible tokens will be transfer to claiming user
     ft_contract: AccountId, // Contract of fungible tokens which will be transfer to claiming user
     counter: u32,           // Reflects how much times the drop can be claimed
+    funded: bool,           // Reflects if the drop is funded
 }
 
 impl Dropper for FTDrop {
@@ -28,6 +29,8 @@ impl Dropper for FTDrop {
             self.amount.gt(&NearToken::from_yoctonear(0)),
             "No tokens to drop"
         );
+
+        assert!(self.funded, "Drop is not funded yet");
 
         let deposit_args = json!({ "account_id": account_id })
             .to_string()
@@ -134,6 +137,7 @@ pub fn create(ft_contract: AccountId, amount_per_drop: NearToken, num_of_keys: u
         ft_contract,
         amount: amount_per_drop,
         counter: num_of_keys,
+        funded: false,
     })
 }
 
@@ -162,6 +166,7 @@ impl Contract {
             ft_contract,
             amount,
             counter,
+            funded,
         }) = &drop
         {
             assert_eq!(
@@ -177,6 +182,7 @@ impl Contract {
                     ft_contract: ft_contract.clone(),
                     amount: amount.clone(),
                     counter: counter.clone(),
+                    funded: true,
                 }),
             )
         } else {
