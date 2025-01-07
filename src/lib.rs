@@ -1,6 +1,5 @@
 use constants::{DropId, ACCESS_KEY_ALLOWANCE};
 use drop_types::Drop;
-use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{
     env, near, AccountId, Allowance, BorshStorageKey, NearToken, PanicOnDefault, Promise, PublicKey,
@@ -12,7 +11,6 @@ mod drop_types;
 mod ft_drop;
 mod near_drop;
 mod nft_drop;
-mod storage;
 
 #[derive(BorshStorageKey)]
 #[near]
