@@ -2,7 +2,7 @@ use near_contract_standards::non_fungible_token::TokenId;
 use near_sdk::{env, serde_json::json, NearToken};
 use near_workspaces::{Account, Contract, DevNetwork, Worker};
 
-pub const ACC_STORAGE: u128 = 4 + 8; // AccountId
+pub const A: u128 = 4 + 8; // AccountId
 
 pub async fn init(
     worker: &Worker<impl DevNetwork>,
