@@ -33,37 +33,34 @@ near call <deployed-to-account> new '{"top_level_account": "<deployed-to-account
 
 To create NEAR drop call 'create_near_drop' method and pass following parameters:
 
-- `drop_id` - unique drop identifier
 - `public_keys` - array of public keys to be used for claiming drops
 - `amount_per_drop` - amount of NEAR tokens to claim per drop
 
 ```bash
-near call <deployed-to-account> create_near_drop '{"drop_id": "1", "public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "100000000000000000000000"}' --accountId <creator-account-id> --deposit 1 --gas 300000000000000
+near call <deployed-to-account> create_near_drop '{"public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "100000000000000000000000"}' --accountId <creator-account-id> --deposit 1 --gas 300000000000000
 ```
 
 ### Create FT drop
 
 To create FT drop call 'create_ft_drop' method and pass following parameters:
 
-- `drop_id` - unique drop identifier
 - `public_keys` - array of public keys to be used for claiming drops
 - `ft_contract` - FT contract account
 - `amount_per_drop` - amount of NEAR tokens to claim per drop
 
 ```bash
-near call tight-achiever.testnet create_ft_drop '{"drop_id": "1", "public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "1", "ft_contract": "ft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
+near call tight-achiever.testnet create_ft_drop '{"public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "1", "ft_contract": "ft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
 ```
 
 ### Create NFT drop
 
 To create NFT drop call 'create_ft_drop' method and pass following parameters:
 
-- `drop_id` - unique drop identifier
 - `public_key` - a public key to be used for claiming drop
 - `nft_contract` - NFT contract account
 
 ```bash
-near call tight-achiever.testnet create_nft_drop '{"drop_id": "1", "public_key": "<public-key>", "nft_contract": "nft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
+near call tight-achiever.testnet create_nft_drop '{"public_key": "<public-key>", "nft_contract": "nft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
 ```
 
 ### Claim drop for an existing account
