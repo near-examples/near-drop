@@ -1,101 +1,90 @@
-near-blank-project
-==================
+# Near Drop Contract
 
-This app was initialized with [create-near-app]
+The smart contract exposes multiple methods to handle creating NEAR/FT/NFT drops and claiming created drops by another user using a PublicKey.
 
+## How to Build Locally?
 
-Quick Start
-===========
+Install [`cargo-near`](https://github.com/near/cargo-near) and run:
 
-If you haven't installed dependencies during setup:
+```bash
+cargo near build
+```
 
-    npm install
+## How to Test Locally?
 
+```bash
+cargo test
+```
 
-Build and deploy your contract to TestNet with a temporary dev account:
+## How to Interact?
 
-    npm run deploy
+_In this example we will be using [NEAR CLI](https://github.com/near/near-cli-rs)
+to interact with the NEAR blockchain and the smart contract_
 
-Test your contract:
+### Initialize
 
-    npm test
+To initialize the contract do:
 
-If you have a frontend, run `npm start`. This will run a dev server.
+```bash
+near call <deployed-to-account> new '{"top_level_account": "<deployed-to-account>"}' --accountId <deployed-to-account>
+```
 
+### Create NEAR drop
 
-Exploring The Code
-==================
+To create NEAR drop call 'create_near_drop' method and pass following parameters:
 
-1. The smart-contract code lives in the `/contract` folder. See the README there for
-   more info. In blockchain apps the smart contract is the "backend" of your app.
-2. The frontend code lives in the `/frontend` folder. `/frontend/index.html` is a great
-   place to start exploring. Note that it loads in `/frontend/index.js`,
-   this is your entrypoint to learn how the frontend connects to the NEAR blockchain.
-3. Test your contract: `npm test`, this will run the tests in `integration-tests` directory.
+- `public_keys` - array of public keys to be used for claiming drops
+- `amount_per_drop` - amount of NEAR tokens to claim per drop
 
+```bash
+near call <deployed-to-account> create_near_drop '{"public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "100000000000000000000000"}' --accountId <creator-account-id> --deposit 1 --gas 300000000000000
+```
 
-Deploy
-======
+### Create FT drop
 
-Every smart contract in NEAR has its [own associated account][NEAR accounts]. 
-When you run `npm run deploy`, your smart contract gets deployed to the live NEAR TestNet with a temporary dev account.
-When you're ready to make it permanent, here's how:
+To create FT drop call 'create_ft_drop' method and pass following parameters:
 
+- `public_keys` - array of public keys to be used for claiming drops
+- `ft_contract` - FT contract account
+- `amount_per_drop` - amount of NEAR tokens to claim per drop
 
-Step 0: Install near-cli (optional)
--------------------------------------
+```bash
+near call tight-achiever.testnet create_ft_drop '{"public_keys": ["<public-key-1>", "<public-key-2>"], "amount_per_drop": "1", "ft_contract": "ft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
+```
 
-[near-cli] is a command line interface (CLI) for interacting with the NEAR blockchain. It was installed to the local `node_modules` folder when you ran `npm install`, but for best ergonomics you may want to install it globally:
+### Create NFT drop
 
-    npm install --global near-cli
+To create NFT drop call 'create_ft_drop' method and pass following parameters:
 
-Or, if you'd rather use the locally-installed version, you can prefix all `near` commands with `npx`
+- `public_key` - a public key to be used for claiming drop
+- `nft_contract` - NFT contract account
 
-Ensure that it's installed with `near --version` (or `npx near --version`)
+```bash
+near call tight-achiever.testnet create_nft_drop '{"public_key": "<public-key>", "nft_contract": "nft.tight-achiever.testnet"}' --accountId tight-achiever.testnet --gas 300000000000000
+```
 
+### Claim drop for an existing account
 
-Step 1: Create an account for the contract
-------------------------------------------
+```bash
+near contract call-function as-transaction <deployed-to-account> claim_for json-args '{"account_id": "<existing-claimer-account-id>"}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' sign-as <deployed-to-account> network-config testnet sign-with-plaintext-private-key --signer-public-key <public-key> --signer-private-key <private-key> send
+```
 
-Each account on NEAR can have at most one contract deployed to it. If you've already created an account such as `your-name.testnet`, you can deploy your contract to `near-blank-project.your-name.testnet`. Assuming you've already created an account on [NEAR Wallet], here's how to create `near-blank-project.your-name.testnet`:
+### Claim drop for a new account
 
-1. Authorize NEAR CLI, following the commands it gives you:
+```bash
+near contract call-function as-transaction <deployed-to-account> create_account_and_claim json-args '{"account_id": "<new-claimer-account-id>"}' prepaid-gas '300.0 Tgas' attached-deposit '0 NEAR' sign-as <account-id> network-config testnet sign-with-plaintext-private-key --signer-public-key <public-key> --signer-private-key <private-key> send
+```
 
-      near login
+## Useful Links
 
-2. Create a subaccount (replace `YOUR-NAME` below with your actual account name):
-
-      near create-account near-blank-project.YOUR-NAME.testnet --masterAccount YOUR-NAME.testnet
-
-Step 2: deploy the contract
----------------------------
-
-Use the CLI to deploy the contract to TestNet with your account ID.
-Replace `PATH_TO_WASM_FILE` with the `wasm` that was generated in `contract` build directory.
-
-    near deploy --accountId near-blank-project.YOUR-NAME.testnet --wasmFile PATH_TO_WASM_FILE
-
-
-Step 3: set contract name in your frontend code
------------------------------------------------
-
-Modify the line in `src/config.js` that sets the account name of the contract. Set it to the account id you used above.
-
-    const CONTRACT_NAME = process.env.CONTRACT_NAME || 'near-blank-project.YOUR-NAME.testnet'
-
-
-
-Troubleshooting
-===============
-
-On Windows, if you're seeing an error containing `EPERM` it may be related to spaces in your path. Please see [this issue](https://github.com/zkat/npx/issues/209) for more details.
-
-
-  [create-near-app]: https://github.com/near/create-near-app
-  [Node.js]: https://nodejs.org/en/download/package-manager/
-  [jest]: https://jestjs.io/
-  [NEAR accounts]: https://docs.near.org/concepts/basics/account
-  [NEAR Wallet]: https://wallet.testnet.near.org/
-  [near-cli]: https://github.com/near/near-cli
-  [gh-pages]: https://github.com/tschaub/gh-pages
-# near-drop
+- [cargo-near](https://github.com/near/cargo-near) - NEAR smart contract
+  development toolkit for Rust
+- [near CLI-RS](https://near.cli.rs) - Iteract with NEAR blockchain from command
+  line
+- [NEAR Rust SDK Documentation](https://docs.near.org/sdk/rust/introduction)
+- [NEAR Documentation](https://docs.near.org)
+- [NEAR StackOverflow](https://stackoverflow.com/questions/tagged/nearprotocol)
+- [NEAR Discord](https://near.chat)
+- [NEAR Telegram Developers Community Group](https://t.me/neardev)
+- NEAR DevHub: [Telegram](https://t.me/neardevhub),
+  [Twitter](https://twitter.com/neardevhub)
