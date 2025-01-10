@@ -7,7 +7,7 @@ use near_workspaces::{
 
 use crate::{
     init::{init, init_nft_contract},
-    utils::INITIAL_CONTRACT_BALANCE,
+    utils::{INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS},
 };
 
 #[tokio::test]
@@ -15,7 +15,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (contract, creator, alice) = init(&worker, &root, INITIAL_CONTRACT_BALANCE).await?;
+    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let (nft_contract, token_id) = init_nft_contract(&worker, &creator).await?;
 
     // Generate the secret key
@@ -28,7 +28,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
             json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}),
         )
         .deposit(NearToken::from_millinear(407))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(create_drop_result_1.is_success());
@@ -43,7 +43,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
             json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}),
         )
         .deposit(NearToken::from_millinear(407))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(create_drop_result_2.is_failure());
@@ -54,7 +54,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
             json!({"token_id": token_id, "account_id": contract.id(), "msg": drop_id.to_string()}),
         )
         .deposit(NearToken::from_yoctonear(450000000000000000000))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(approve_result.is_success());
@@ -73,7 +73,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result.is_success());
@@ -102,7 +102,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (contract, creator, alice) = init(&worker, &root, INITIAL_CONTRACT_BALANCE).await?;
+    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let (nft_contract, token_id) = init_nft_contract(&worker, &creator).await?;
 
     // Generate the secret key
@@ -115,7 +115,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
             json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}),
         )
         .deposit(NearToken::from_millinear(407))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(create_drop_result.is_success());
@@ -136,7 +136,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
             json!({"token_id": token_id, "account_id": contract.id(), "msg": drop_id.to_string()}),
         )
         .deposit(NearToken::from_yoctonear(450000000000000000000))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(approve_result.is_success());
@@ -154,7 +154,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_1 = claimer
         .call(contract.id(), "create_account_and_claim")
         .args_json(json!({"account_id": long_account_id}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -172,7 +172,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_failure());

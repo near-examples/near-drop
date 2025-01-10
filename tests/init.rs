@@ -1,11 +1,8 @@
 use near_contract_standards::non_fungible_token::TokenId;
-use near_sdk::{env, serde_json::json, NearToken};
+use near_sdk::{serde_json::json, Gas, NearToken};
 use near_workspaces::{Account, Contract, DevNetwork, Worker};
 
-pub const A: u128 = 4 + 8; // AccountId
-
 pub async fn init(
-    worker: &Worker<impl DevNetwork>,
     root: &Account,
     initial_contract_balance: NearToken,
 ) -> anyhow::Result<(Account, Account, Account)> {
@@ -14,9 +11,7 @@ pub async fn init(
 
     let contract = root
         .create_subaccount("contract")
-        .initial_balance(
-            initial_contract_balance, //     .saturating_add(env::storage_byte_cost().saturating_mul(ACC_STORAGE)),
-        )
+        .initial_balance(initial_contract_balance)
         .transact()
         .await?
         .unwrap();
@@ -36,7 +31,7 @@ pub async fn init(
     let res = contract
         .call(contract.id(), "new")
         .args_json(json!({"top_level_account": root.id()}))
-        .max_gas()
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(res.is_success());
@@ -54,7 +49,7 @@ pub async fn init_ft_contract(
     let res = ft_contract
         .call("new_default_meta")
         .args_json(json!({"owner_id": creator.id(), "name": "token", "symbol": "tt", "total_supply": "1000000000000000000000000" }))
-        .max_gas()
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(res.is_success());
@@ -72,7 +67,7 @@ pub async fn init_nft_contract(
     let new_default_res = nft_contract
         .call("new_default_meta")
         .args_json(json!({"owner_id": creator.id(), "name": "token", "symbol": "tt" }))
-        .max_gas()
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(new_default_res.is_success());
@@ -82,7 +77,7 @@ pub async fn init_nft_contract(
         .call(nft_contract.id(), "nft_mint")
         .args_json(json!({"token_id": token_id, "token_owner_id": creator.id(), "token_metadata": {"copies": 1, "description": "The Team Goes", "media": "https://bafybeidl4hjbpdr6u6xvlrizwxbrfcyqurzvcnn5xoilmcqbxfbdwrmp5m.ipfs.dweb.link/", "title": "GO TEAM"}}))
         .deposit(NearToken::from_yoctonear(6580000000000000000000))
-        .max_gas()
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(mint_res.is_success());

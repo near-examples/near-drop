@@ -1,18 +1,18 @@
-use near_sdk::{json_types::U128, serde_json::json, AccountId, NearToken};
+use near_sdk::{serde_json::json, AccountId, NearToken};
 use near_workspaces::{
     types::{KeyType, SecretKey},
     Account,
 };
 
 use crate::init::{init, init_ft_contract};
-use crate::utils::INITIAL_CONTRACT_BALANCE;
+use crate::utils::{INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (contract, creator, alice) = init(&worker, &root, INITIAL_CONTRACT_BALANCE).await?;
+    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let ft_contract = init_ft_contract(&worker, &creator).await?;
 
     let amount_per_drop = NearToken::from_yoctonear(1);
@@ -27,7 +27,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .call(contract.id(), "create_ft_drop")
         .args_json(json!({"public_keys": public_keys, "ft_contract": ft_contract.id(), "amount_per_drop": amount_per_drop}))
         .deposit(NearToken::from_millinear(506))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(create_drop_result.is_success());
@@ -39,7 +39,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .call(ft_contract.id(), "storage_deposit")
         .args_json(json!({"account_id": contract.id()}))
         .deposit(NearToken::from_yoctonear(12500000000000000000000))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(storage_deposit_result.is_success());
@@ -50,7 +50,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .call(ft_contract.id(), "ft_transfer_call")
         .args_json(args)
         .deposit(NearToken::from_yoctonear(1))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(ft_transfer_result.is_success());
@@ -71,7 +71,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_1 = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -88,7 +88,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let failed_claim_result = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(failed_claim_result.is_failure());
@@ -96,7 +96,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer_2
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_success());
@@ -124,7 +124,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
     let root = worker.root_account().unwrap();
 
-    let (contract, creator, alice) = init(&worker, &root, INITIAL_CONTRACT_BALANCE).await?;
+    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let ft_contract = init_ft_contract(&worker, &creator).await?;
 
     let amount_per_drop = NearToken::from_yoctonear(1);
@@ -138,7 +138,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .call(contract.id(), "create_ft_drop")
         .args_json(json!({"public_keys": public_keys, "ft_contract": ft_contract.id(), "amount_per_drop": amount_per_drop}))
         .deposit(NearToken::from_millinear(407))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(create_drop_result_1.is_success());
@@ -151,7 +151,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .call(contract.id(), "create_ft_drop")
         .args_json(json!({"public_keys": public_keys, "ft_contract": ft_contract.id(), "amount_per_drop": amount_per_drop}))
         .deposit(NearToken::from_millinear(407))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(create_near_drop_result_2.is_failure());
@@ -160,7 +160,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .call(ft_contract.id(), "storage_deposit")
         .args_json(json!({"account_id": contract.id()}))
         .deposit(NearToken::from_yoctonear(12500000000000000000000))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(storage_deposit_result.is_success());
@@ -171,7 +171,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .call(ft_contract.id(), "ft_transfer_call")
         .args_json(args)
         .deposit(NearToken::from_yoctonear(1))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(ft_transfer_result.is_success());
@@ -196,7 +196,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_1 = claimer
         .call(contract.id(), "create_account_and_claim")
         .args_json(json!({"account_id": long_account_id}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -213,7 +213,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .max_gas()
+        .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_failure());

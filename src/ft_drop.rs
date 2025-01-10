@@ -2,7 +2,7 @@ use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
-    env, log, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
+    env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
 };
 
 use crate::constants::*;

@@ -1,5 +1,5 @@
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::{env, log, near, AccountId, NearToken, Promise, PromiseError, PublicKey};
+use near_sdk::{env, near, AccountId, NearToken, Promise, PromiseError};
 
 use crate::constants::*;
 use crate::drop_types::{Dropper, Getters, Setters};
