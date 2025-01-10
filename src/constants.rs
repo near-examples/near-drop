@@ -7,7 +7,7 @@ pub type DropId = u32;
 pub const ACCESS_KEY_ALLOWANCE: NearToken = NearToken::from_millinear(30); // 0.03 N
 
 // Cost of creating a new account with longest possible name
-pub const CREATE_ACCOUNT_FEE: NearToken = NearToken::from_yoctonear(1_840_000_000_000_000_000_000); // 0.00184 N
+pub const CREATE_ACCOUNT_FEE: NearToken = NearToken::from_yoctonear(0); // 0 N
 
 // Minimum GAS for callback. Any unspent GAS will be added according to the weights)
 pub const CREATE_CALLBACK_GAS: Gas = Gas::from_tgas(55); // 55 TGas
