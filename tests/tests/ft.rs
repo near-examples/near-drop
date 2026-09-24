@@ -5,7 +5,7 @@ use near_workspaces::{
 };
 
 use crate::init::{init, init_ft_contract};
-use crate::utils::{INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
+use crate::utils::{INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS, CLAIM_GAS, CREATE_ACCOUNT_AND_CLAIM_GAS};
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
@@ -71,7 +71,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_1 = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -88,7 +88,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let failed_claim_result = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(failed_claim_result.is_failure());
@@ -96,7 +96,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer_2
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_success());
@@ -196,7 +196,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_1 = claimer
         .call(contract.id(), "create_account_and_claim")
         .args_json(json!({"account_id": long_account_id}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CREATE_ACCOUNT_AND_CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -213,7 +213,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_failure());

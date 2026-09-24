@@ -2,6 +2,9 @@ use near_sdk::{Gas, NearToken};
 use near_workspaces::{types::AccountDetails, Account};
 
 pub const ONE_HUNDRED_TGAS: Gas = Gas::from_tgas(100);
+// Calls signed with the drop key must fit in ACCESS_KEY_ALLOWANCE (0.1 N)
+pub const CLAIM_GAS: Gas = Gas::from_tgas(25);
+pub const CREATE_ACCOUNT_AND_CLAIM_GAS: Gas = Gas::from_tgas(95);
 
 pub const INITIAL_CONTRACT_BALANCE: NearToken = NearToken::from_near(4);
 

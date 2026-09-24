@@ -95,7 +95,7 @@ pub fn create(nft_contract: AccountId) -> Drop {
     let extra_deposit = attached_deposit.saturating_sub(required_deposit);
     if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
         // refund the user, we don't need that money
-        Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
+        Promise::new(env::predecessor_account_id()).transfer(extra_deposit).detach();
     }
 
     Drop::NFT(NFTDrop {
@@ -108,6 +108,7 @@ pub fn create(nft_contract: AccountId) -> Drop {
 #[near]
 impl Contract {
     // Fund an existing drop
+    #[allow(unused_variables)]
     pub fn nft_on_approve(
         &mut self,
         token_id: TokenId,
@@ -148,6 +149,7 @@ impl Contract {
         PromiseOrValue::Value(U128(0))
     }
 
+    #[allow(unused_variables)]
     pub fn resolve_nft_claim(
         account_created: bool,
         drop_deleted: bool,
@@ -174,7 +176,7 @@ impl Contract {
         }
 
         // Return NEAR
-        Promise::new(funder.clone()).transfer(to_refund);
+        Promise::new(funder.clone()).transfer(to_refund).detach();
 
         true
     }

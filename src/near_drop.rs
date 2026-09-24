@@ -79,7 +79,7 @@ pub fn create(amount_per_drop: NearToken, num_of_keys: u32) -> Drop {
     let extra_deposit = attached_deposit.saturating_sub(required_deposit);
     if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
         // refund the user, we don't need that money
-        Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
+        Promise::new(env::predecessor_account_id()).transfer(extra_deposit).detach();
     }
 
     assert!(
@@ -118,7 +118,7 @@ impl Contract {
         }
 
         // Return the money
-        Promise::new(funder).transfer(to_refund);
+        Promise::new(funder).transfer(to_refund).detach();
         true
     }
 }

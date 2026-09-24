@@ -4,7 +4,7 @@ use near_workspaces::types::{KeyType, SecretKey};
 use near_workspaces::Account;
 
 use crate::init::init;
-use crate::utils::{get_user_balance, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
+use crate::utils::{get_user_balance, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS, CLAIM_GAS, CREATE_ACCOUNT_AND_CLAIM_GAS};
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
@@ -30,7 +30,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .args_json(
             json!({"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}),
         )
-        .deposit(NearToken::from_millinear(2070))
+        .deposit(NearToken::from_millinear(2210))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
@@ -43,7 +43,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .args_json(
             json!({"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}),
         )
-        .deposit(NearToken::from_millinear(2810))
+        .deposit(NearToken::from_millinear(2210))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
@@ -64,7 +64,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_1: near_workspaces::result::ExecutionFinalResult = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -86,7 +86,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer_2
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_success());
@@ -110,7 +110,7 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let claim_result_3 = claimer_1
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_3.is_failure());
@@ -172,7 +172,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_1 = claimer
         .call(contract.id(), "create_account_and_claim")
         .args_json(json!({"account_id": long_account_id}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CREATE_ACCOUNT_AND_CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_1.is_success());
@@ -188,7 +188,7 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
     let claim_result_2 = claimer
         .call(contract.id(), "claim_for")
         .args_json(json!({"account_id": alice.id()}))
-        .gas(ONE_HUNDRED_TGAS)
+        .gas(CLAIM_GAS)
         .transact()
         .await?;
     assert!(claim_result_2.is_failure());
