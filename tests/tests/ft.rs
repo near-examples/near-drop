@@ -5,7 +5,40 @@ use near_workspaces::{
 };
 
 use crate::init::{init, init_ft_contract};
-use crate::utils::{INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS, CLAIM_GAS, CREATE_ACCOUNT_AND_CLAIM_GAS};
+use crate::utils::{
+    CLAIM_GAS, CREATE_ACCOUNT_AND_CLAIM_GAS, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS,
+};
+
+#[tokio::test]
+async fn ft_drop_requires_recipient_registration_deposit() -> anyhow::Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let root = worker.root_account().unwrap();
+
+    let (contract, creator, _) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
+    let ft_contract = init_ft_contract(&worker, &creator).await?;
+    let secret_key = SecretKey::from_random(KeyType::ED25519);
+
+    // This covers the access-key allowance and storage padding, but not the
+    // 0.0125 NEAR that the contract spends to register the claim recipient.
+    let create_drop_result = creator
+        .call(contract.id(), "create_ft_drop")
+        .args_json(json!({
+            "public_keys": [secret_key.public_key()],
+            "ft_contract": ft_contract.id(),
+            "amount_per_drop": NearToken::from_yoctonear(1),
+        }))
+        .deposit(NearToken::from_millinear(110))
+        .gas(ONE_HUNDRED_TGAS)
+        .transact()
+        .await?;
+
+    assert!(
+        create_drop_result.is_failure(),
+        "FT drop creation must reject deposits that omit recipient registration funding"
+    );
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
@@ -90,8 +123,9 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .args_json(json!({"account_id": alice.id()}))
         .gas(CLAIM_GAS)
         .transact()
-        .await?;
-    assert!(failed_claim_result.is_failure());
+        .await;
+    // The key was deleted on claim, so re-signing with it is rejected at broadcast.
+    assert!(failed_claim_result.is_err());
 
     let claim_result_2 = claimer_2
         .call(contract.id(), "claim_for")
@@ -215,8 +249,9 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .args_json(json!({"account_id": alice.id()}))
         .gas(CLAIM_GAS)
         .transact()
-        .await?;
-    assert!(claim_result_2.is_failure());
+        .await;
+    // The key was deleted on claim, so re-signing with it is rejected at broadcast.
+    assert!(claim_result_2.is_err());
 
     let get_drop_result_2 = creator
         .call(contract.id(), "get_drop_by_id")

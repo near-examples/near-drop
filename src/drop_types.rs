@@ -17,11 +17,10 @@ pub enum Drop {
 
 pub trait Dropper {
     fn promise_for_claiming(&self, account_id: AccountId) -> Promise;
-    fn promise_to_resolve_claim(&self, account_created: bool, drop_deleted: bool) -> Promise;
+    fn promise_to_resolve_claim(&self, account_created: bool, storage_refund: NearToken) -> Promise;
 }
 
 pub trait Getters {
-    fn get_amount_per_drop(&self) -> Result<NearToken, &str>;
     fn get_counter(&self) -> Result<u32, &str>;
 }
 
@@ -38,26 +37,18 @@ impl Dropper for Drop {
         }
     }
 
-    fn promise_to_resolve_claim(&self, account_created: bool, drop_deleted: bool) -> Promise {
+    fn promise_to_resolve_claim(&self, account_created: bool, storage_refund: NearToken) -> Promise {
         match self {
             Drop::NEAR(near_drop) => {
-                near_drop.promise_to_resolve_claim(account_created, drop_deleted)
+                near_drop.promise_to_resolve_claim(account_created, storage_refund)
             }
-            Drop::FT(ft_drop) => ft_drop.promise_to_resolve_claim(account_created, drop_deleted),
-            Drop::NFT(nft_drop) => nft_drop.promise_to_resolve_claim(account_created, drop_deleted),
+            Drop::FT(ft_drop) => ft_drop.promise_to_resolve_claim(account_created, storage_refund),
+            Drop::NFT(nft_drop) => nft_drop.promise_to_resolve_claim(account_created, storage_refund),
         }
     }
 }
 
 impl Getters for Drop {
-    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
-        match self {
-            Drop::NEAR(near_drop) => near_drop.get_amount_per_drop(),
-            Drop::FT(ft_drop) => ft_drop.get_amount_per_drop(),
-            _ => Err("There is no amount_per_drop field for NFT drop structure"),
-        }
-    }
-
     fn get_counter(&self) -> Result<u32, &str> {
         match self {
             Drop::NEAR(near_drop) => near_drop.get_counter(),

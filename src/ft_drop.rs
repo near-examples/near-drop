@@ -1,8 +1,9 @@
+use near_contract_standards::storage_management::StorageBalanceBounds;
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{
-    env, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
+    env, ext_contract, near, AccountId, GasWeight, NearToken, Promise, PromiseError, PromiseOrValue,
 };
 
 use crate::constants::*;
@@ -10,7 +11,16 @@ use crate::drop_types::{Dropper, Getters, Setters};
 use crate::Drop;
 use crate::{Contract, ContractExt};
 
+// Upper bound charged to the funder up front. The exact registration cost is
+// queried from the FT at funding time (see ft_on_transfer) and the unused excess
+// is refunded to the funder on claim.
 const FT_REGISTER: NearToken = NearToken::from_yoctonear(12_500_000_000_000_000_000_000);
+
+#[ext_contract(ext_ft)]
+#[allow(dead_code)]
+trait FtStorageBounds {
+    fn storage_balance_bounds(&self) -> StorageBalanceBounds;
+}
 
 #[derive(Clone, Debug, BorshDeserialize, BorshSerialize)]
 #[near(serializers = [json])]
@@ -21,6 +31,7 @@ pub struct FTDrop {
     ft_contract: AccountId, // Contract of fungible tokens which will be transfer to claiming user
     counter: u32,           // Reflects how much times the drop can be claimed
     funded: bool,           // Reflects if the drop is funded
+    registration_cost: NearToken, // Exact FT storage_deposit cost, queried at funding
 }
 
 impl Dropper for FTDrop {
@@ -46,7 +57,7 @@ impl Dropper for FTDrop {
             .function_call_weight(
                 "storage_deposit".to_string(),
                 deposit_args,
-                FT_REGISTER,
+                self.registration_cost,
                 MIN_GAS_FOR_FT_STORAGE_DEPOSIT,
                 GasWeight(0),
             )
@@ -59,16 +70,17 @@ impl Dropper for FTDrop {
             )
     }
 
-    fn promise_to_resolve_claim(&self, account_created: bool, drop_deleted: bool) -> Promise {
+    fn promise_to_resolve_claim(&self, account_created: bool, storage_refund: NearToken) -> Promise {
         Contract::ext(env::current_account_id())
             .with_static_gas(FT_CLAIM_CALLBACK_GAS)
             .with_unused_gas_weight(0)
             .resolve_ft_claim(
                 account_created,
-                drop_deleted,
+                storage_refund,
                 self.funder.clone(),
                 self.amount,
                 self.ft_contract.clone(),
+                self.registration_cost,
             )
     }
 }
@@ -76,10 +88,6 @@ impl Dropper for FTDrop {
 impl Getters for FTDrop {
     fn get_counter(&self) -> Result<u32, &str> {
         Ok(self.counter)
-    }
-
-    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
-        Ok(self.amount)
     }
 }
 
@@ -91,53 +99,30 @@ impl Setters for FTDrop {
 }
 
 pub fn required_deposit_per_key() -> NearToken {
-  CREATE_ACCOUNT_FEE
-      .saturating_add(ACCESS_KEY_ALLOWANCE)
-      .saturating_add(ACCESS_KEY_STORAGE)
+    // Each claim pays FT_REGISTER to register the recipient on the FT contract,
+    // so the funder must cover it up front.
+    CREATE_ACCOUNT_FEE
+        .saturating_add(ACCESS_KEY_ALLOWANCE)
+        .saturating_add(ACCESS_KEY_STORAGE)
+        .saturating_add(FT_REGISTER)
 }
 
-pub fn required_storage_drop(num_access_keys: u32) -> NearToken {
-  NearToken::from_yoctonear(
-      // DropId -> Drop::Near
-      ID_STORAGE + ENUM_STORAGE + ACC_STORAGE * 2 + TOKEN_AMOUNT_STORAGE + 8 
-      // PublicKey -> DropId
-      + num_access_keys as u128 * (PK_STORAGE + ID_STORAGE)
-  )
-}
-
+// Storage is measured on-chain by the caller (see Contract::charge_storage_and_refund),
+// so this only validates the business rule and builds the drop.
 pub fn create(ft_contract: AccountId, amount_per_drop: NearToken, num_of_keys: u32) -> Drop {
-    let funder = env::predecessor_account_id();
-
-    let attached_deposit = env::attached_deposit();
-    let required_deposit = // required_storage_drop + (required_deposit_per_key * num_of_keys)
-        required_storage_drop(num_of_keys)
-        .saturating_add(
-            required_deposit_per_key()
-                .saturating_mul(num_of_keys as u128),
-        );
-
-    assert!(
-        attached_deposit >= required_deposit,
-        "Please attach at least {required_deposit}"
-    );
-
-    let extra_deposit = attached_deposit.saturating_sub(required_deposit);
-    if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
-        // refund the user, we don't need that money
-        Promise::new(env::predecessor_account_id()).transfer(extra_deposit).detach();
-    }
-
     assert!(
         amount_per_drop.ge(&NearToken::from_yoctonear(1)),
         "Amount per drop cannot be 0"
     );
 
     Drop::FT(FTDrop {
-        funder,
+        funder: env::predecessor_account_id(),
         ft_contract,
         amount: amount_per_drop,
         counter: num_of_keys,
         funded: false,
+        // Placeholder; set to the FT's real storage_deposit cost when funded.
+        registration_cost: FT_REGISTER,
     })
 }
 
@@ -151,23 +136,16 @@ impl Contract {
         amount: NearToken,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        let drop_id: u32 = msg.parse().unwrap(); 
+        let drop_id: u32 = msg.parse().unwrap();
         let drop = self.drop_by_id.get(&drop_id).expect("Missing such drop_id");
-        let counter = drop.get_counter().unwrap();
-        let amount_per_drop = drop.get_amount_per_drop().unwrap();
-        let required_amount = amount_per_drop.saturating_mul(counter.into());
-        assert_eq!(
-            amount, required_amount,
-            "Wrong FT amount, expected {required_amount}"
-        );
 
-        // Make sure the drop exists
+        // Make sure the drop exists and is an FT drop
         if let Drop::FT(FTDrop {
-            funder,
             ft_contract,
-            amount,
+            amount: amount_per_drop,
             counter,
-            funded: _,
+            funded,
+            ..
         }) = &drop
         {
             assert_eq!(
@@ -175,44 +153,73 @@ impl Contract {
                 &env::predecessor_account_id(),
                 "Wrong FTs, expected {ft_contract}"
             );
-            // Update and insert again
-            self.drop_by_id.insert(
-                drop_id,
-                Drop::FT(FTDrop {
-                    funder: funder.clone(),
-                    ft_contract: ft_contract.clone(),
-                    amount: amount.clone(),
-                    counter: counter.clone(),
-                    funded: true,
-                }),
-            )
+
+            // Already funded: refund the incoming tokens instead of trapping them.
+            if *funded {
+                return PromiseOrValue::Value(U128(amount.as_yoctonear()));
+            }
+
+            let required_amount = amount_per_drop.saturating_mul((*counter).into());
+            assert_eq!(
+                amount, required_amount,
+                "Wrong FT amount, expected {required_amount}"
+            );
         } else {
             panic!("Not an FT drop")
         };
 
-        // We do not return any tokens
-        PromiseOrValue::Value(U128(0))
+        // Query the FT's real registration cost, then mark the drop funded. Keeps
+        // all the tokens (U128(0) unused) once funding is recorded.
+        PromiseOrValue::Promise(
+            ext_ft::ext(env::predecessor_account_id())
+                .storage_balance_bounds()
+                .then(Self::ext(env::current_account_id()).resolve_ft_funding(drop_id)),
+        )
     }
 
+    #[private]
+    pub fn resolve_ft_funding(
+        &mut self,
+        drop_id: u32,
+        #[callback_result] bounds: Result<StorageBalanceBounds, PromiseError>,
+    ) -> U128 {
+        let registration_cost = bounds.expect("Could not fetch FT storage bounds").min;
+
+        let drop = self.drop_by_id.get(&drop_id).expect("Missing such drop_id");
+        if let Drop::FT(ft_drop) = drop {
+            let mut updated = ft_drop.clone();
+            updated.funded = true;
+            updated.registration_cost = registration_cost;
+            self.drop_by_id.insert(drop_id, Drop::FT(updated));
+        } else {
+            panic!("Not an FT drop")
+        }
+
+        // Keep all the tokens
+        U128(0)
+    }
+
+    #[private]
     pub fn resolve_ft_claim(
         account_created: bool,
-        drop_deleted: bool,
+        storage_refund: NearToken,
         funder: AccountId,
         amount: NearToken,
         ft_contract: AccountId,
+        registration_cost: NearToken,
         #[callback_result] result: Result<(), PromiseError>,
     ) -> bool {
-        let mut to_refund = ACCESS_KEY_STORAGE;
+        let mut to_refund = ACCESS_KEY_STORAGE.saturating_add(storage_refund);
 
         if !account_created {
             to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
         }
 
-        if drop_deleted {
-            to_refund = to_refund.saturating_add(required_storage_drop(0));
-        }
-
         if result.is_err() {
+            // The claim batch (storage_deposit + ft_transfer) reverted atomically,
+            // so the whole pre-paid FT_REGISTER came back to the contract.
+            to_refund = to_refund.saturating_add(FT_REGISTER);
+
             // Return Tokens
             let transfer_args =
                 json!({"receiver_id": funder, "amount": U128(amount.as_yoctonear())})
@@ -227,6 +234,10 @@ impl Contract {
                 MIN_GAS_FOR_FT_TRANSFER,
                 GasWeight(0),
             ).detach();
+        } else {
+            // Only registration_cost was actually spent registering the recipient;
+            // refund the funder the pre-paid excess.
+            to_refund = to_refund.saturating_add(FT_REGISTER.saturating_sub(registration_cost));
         }
 
         // Return NEAR
