@@ -38,13 +38,13 @@ impl Dropper for NFTDrop {
         )
     }
 
-    fn promise_to_resolve_claim(&self, account_created: bool, drop_deleted: bool) -> Promise {
+    fn promise_to_resolve_claim(&self, account_created: bool, storage_refund: NearToken) -> Promise {
         Contract::ext(env::current_account_id())
             .with_static_gas(NFT_CLAIM_CALLBACK_GAS)
             .with_unused_gas_weight(0)
             .resolve_nft_claim(
                 account_created,
-                drop_deleted,
+                storage_refund,
                 self.funder.clone(),
                 self.token_id.clone(),
                 self.nft_contract.clone(),
@@ -56,10 +56,6 @@ impl Getters for NFTDrop {
     fn get_counter(&self) -> Result<u32, &str> {
         Err("There is no counter field for NFT drop structure")
     }
-
-    fn get_amount_per_drop(&self) -> Result<NearToken, &str> {
-        Err("There is no amount_per_drop field for NFT drop structure")
-    }
 }
 
 pub fn required_deposit_per_key() -> NearToken {
@@ -68,38 +64,11 @@ pub fn required_deposit_per_key() -> NearToken {
       .saturating_add(ACCESS_KEY_STORAGE)
 }
 
-pub fn required_storage_drop() -> NearToken {
-  NearToken::from_yoctonear(
-      // DropId -> Drop::Near
-      ID_STORAGE + ENUM_STORAGE + ACC_STORAGE * 2 + NFT_TOKEN_ID_STORAGE + 8 
-      // PublicKey -> DropId
-      + (PK_STORAGE + ID_STORAGE)
-  )
-}
-
+// Storage is measured on-chain by the caller (see Contract::charge_storage_and_refund),
+// so this only builds the drop.
 pub fn create(nft_contract: AccountId) -> Drop {
-    let funder = env::predecessor_account_id();
-    
-    let attached_deposit = env::attached_deposit();
-    let required_deposit = // required_storage_drop + (required_deposit_per_key * num_of_keys)
-        required_storage_drop()
-        .saturating_add(
-            required_deposit_per_key()
-        );
-    
-    assert!(
-        attached_deposit >= required_deposit,
-        "Please attach at least {required_deposit}"
-    );
-
-    let extra_deposit = attached_deposit.saturating_sub(required_deposit);
-    if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
-        // refund the user, we don't need that money
-        Promise::new(env::predecessor_account_id()).transfer(extra_deposit).detach();
-    }
-
     Drop::NFT(NFTDrop {
-        funder,
+        funder: env::predecessor_account_id(),
         nft_contract,
         token_id: "".to_string(),
     })
@@ -149,23 +118,20 @@ impl Contract {
         PromiseOrValue::Value(U128(0))
     }
 
+    #[private]
     #[allow(unused_variables)]
     pub fn resolve_nft_claim(
         account_created: bool,
-        drop_deleted: bool,
+        storage_refund: NearToken,
         funder: AccountId,
         token_id: String,
         nft_contract: AccountId,
         #[callback_result] result: Result<(), PromiseError>,
     ) -> bool {
-        let mut to_refund = ACCESS_KEY_STORAGE;
+        let mut to_refund = ACCESS_KEY_STORAGE.saturating_add(storage_refund);
 
         if !account_created {
             to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
-        }
-
-        if drop_deleted {
-            to_refund = to_refund.saturating_add(required_storage_drop());
         }
 
         if result.is_err() {

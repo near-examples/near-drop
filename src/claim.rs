@@ -46,8 +46,9 @@ impl Contract {
         account_id: AccountId,
         #[callback_result] created: Result<bool, PromiseError>,
     ) -> Promise {
-        // The first step of creating an account has finished
-        if let Err(_) = created {
+        // create_account returns Ok(true) only when the account was really made.
+        // Ok(false) (e.g. the name already exists) or Err must NOT consume the drop.
+        if !matches!(created, Ok(true)) {
             panic!("Creating account failed")
         }
 
@@ -57,6 +58,7 @@ impl Contract {
 
     fn internal_claim(&mut self, account_id: AccountId, account_created: bool) -> Promise {
         let public_key = env::signer_account_pk();
+        let storage_before = env::storage_usage();
 
         // get the id for the public_key
         let drop_id = self
@@ -70,17 +72,27 @@ impl Contract {
             .expect("No drop information for such drop_id");
         let counter = drop.get_counter().unwrap_or(1);
         let updated_counter = counter - 1;
-        let mut drop_deleted = true;
 
         if updated_counter > 0 {
             let mut updated_drop = drop.clone();
             let _ = updated_drop.set_counter(updated_counter);
 
             self.drop_by_id.insert(drop_id.clone(), updated_drop);
-            drop_deleted = false;
         }
 
+        // Refund the funder for exactly the storage this claim frees (the map
+        // entries removed above). Mirrors the measured charge done on creation.
+        let freed = storage_before.saturating_sub(env::storage_usage());
+        let storage_refund = env::storage_byte_cost().saturating_mul(freed as u128);
+
+        // The key was already removed from the map above and is single-use, so
+        // delete it from the account too. Otherwise it keeps holding storage and
+        // its leftover allowance can be burned against the contract.
+        Promise::new(env::current_account_id())
+            .delete_key(public_key)
+            .detach();
+
         drop.promise_for_claiming(account_id)
-            .then(drop.promise_to_resolve_claim(account_created, drop_deleted))
+            .then(drop.promise_to_resolve_claim(account_created, storage_refund))
     }
 }

@@ -112,8 +112,9 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         .args_json(json!({"account_id": alice.id()}))
         .gas(CLAIM_GAS)
         .transact()
-        .await?;
-    assert!(claim_result_3.is_failure());
+        .await;
+    // The key was deleted on claim, so re-signing with it is rejected at broadcast.
+    assert!(claim_result_3.is_err());
 
     let get_drop_result_2 = creator
         .call(contract.id(), "get_drop_by_id")
@@ -190,8 +191,9 @@ async fn drop_on_new_account() -> anyhow::Result<()> {
         .args_json(json!({"account_id": alice.id()}))
         .gas(CLAIM_GAS)
         .transact()
-        .await?;
-    assert!(claim_result_2.is_failure());
+        .await;
+    // The key was deleted on claim, so re-signing with it is rejected at broadcast.
+    assert!(claim_result_2.is_err());
 
     // Ideally there should be no surplus in the contract
     assert!(contract_balance_after.ge(&contract_balance_before));

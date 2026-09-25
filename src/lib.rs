@@ -47,20 +47,19 @@ impl Contract {
         public_keys: Vec<PublicKey>,
         amount_per_drop: NearToken,
     ) -> DropId {
-        // check that the access keys are not already used
-        // TODO: add test for that case
-        for public_key in public_keys.iter() {
-            assert!(
-                self.drop_id_by_key.get(public_key).is_none(),
-                "Public key is already used for a drop"
-            );
-        }
+        self.assert_keys_available(&public_keys);
 
         let num_of_keys = public_keys.len().try_into().unwrap();
 
+        let storage_before = env::storage_usage();
         let drop = near_drop::create(amount_per_drop, num_of_keys);
         let drop_id = self.save_drop(drop);
         self.save_drop_id_by_keys(&public_keys, drop_id);
+        self.charge_storage_and_refund(
+            storage_before,
+            near_drop::required_deposit_per_key(amount_per_drop),
+            num_of_keys,
+        );
 
         drop_id
     }
@@ -72,18 +71,18 @@ impl Contract {
         ft_contract: AccountId,
         amount_per_drop: NearToken,
     ) -> DropId {
-        // check that the access keys are not already used
-        for public_key in public_keys.iter() {
-            assert!(
-                self.drop_id_by_key.get(public_key).is_none(),
-                "Public key is already used for a drop"
-            );
-        }
+        self.assert_keys_available(&public_keys);
 
         let num_of_keys = public_keys.len().try_into().unwrap();
+        let storage_before = env::storage_usage();
         let drop = ft_drop::create(ft_contract, amount_per_drop, num_of_keys);
         let drop_id = self.save_drop(drop);
         self.save_drop_id_by_keys(&public_keys, drop_id);
+        self.charge_storage_and_refund(
+            storage_before,
+            ft_drop::required_deposit_per_key(),
+            num_of_keys,
+        );
 
         drop_id
     }
@@ -95,9 +94,11 @@ impl Contract {
             "Public key is already used for a drop"
         );
 
+        let storage_before = env::storage_usage();
         let drop = nft_drop::create(nft_contract);
         let drop_id = self.save_drop(drop);
         self.save_drop_id_by_key(public_key, drop_id).detach();
+        self.charge_storage_and_refund(storage_before, nft_drop::required_deposit_per_key(), 1);
 
         drop_id
     }
@@ -114,6 +115,50 @@ impl Contract {
             .get(public_key)
             .expect("No drop for public key")
             .into()
+    }
+
+    // Rejects empty key sets, keys already tied to a drop, and duplicates within
+    // this call (duplicates would inflate the counter past the usable key count,
+    // stranding funds in an unclaimable drop).
+    // ponytail: O(n^2) dup scan; keys per drop are few. Use a HashSet if that changes.
+    fn assert_keys_available(&self, public_keys: &Vec<PublicKey>) {
+        assert!(!public_keys.is_empty(), "Must provide at least one public key");
+
+        for (i, public_key) in public_keys.iter().enumerate() {
+            assert!(
+                self.drop_id_by_key.get(public_key).is_none(),
+                "Public key is already used for a drop"
+            );
+            assert!(
+                !public_keys[i + 1..].contains(public_key),
+                "Duplicate public key in the drop"
+            );
+        }
+    }
+
+    // Charges the caller for the storage the drop just consumed (measured on-chain,
+    // so it can't be under/over-estimated) plus the per-key allowance and fees, then
+    // refunds any excess. Runs after the inserts so a shortfall panics and reverts them.
+    fn charge_storage_and_refund(
+        &self,
+        storage_before: u64,
+        deposit_per_key: NearToken,
+        num_of_keys: u32,
+    ) {
+        let used = env::storage_usage().saturating_sub(storage_before);
+        let required = env::storage_byte_cost()
+            .saturating_mul(used as u128)
+            .saturating_add(deposit_per_key.saturating_mul(num_of_keys as u128));
+
+        let attached = env::attached_deposit();
+        assert!(attached >= required, "Please attach at least {required}");
+
+        let extra = attached.saturating_sub(required);
+        if extra > NearToken::from_yoctonear(0) {
+            Promise::new(env::predecessor_account_id())
+                .transfer(extra)
+                .detach();
+        }
     }
 
     fn save_drop_id_by_key(&mut self, public_key: PublicKey, drop_id: DropId) -> Promise {
