@@ -124,7 +124,7 @@ pub fn create(ft_contract: AccountId, amount_per_drop: NearToken, num_of_keys: u
     let extra_deposit = attached_deposit.saturating_sub(required_deposit);
     if extra_deposit.gt(&NearToken::from_yoctonear(0)) {
         // refund the user, we don't need that money
-        Promise::new(env::predecessor_account_id()).transfer(extra_deposit);
+        Promise::new(env::predecessor_account_id()).transfer(extra_deposit).detach();
     }
 
     assert!(
@@ -144,6 +144,7 @@ pub fn create(ft_contract: AccountId, amount_per_drop: NearToken, num_of_keys: u
 #[near]
 impl Contract {
     // Fund an existing drop
+    #[allow(unused_variables)]
     pub fn ft_on_transfer(
         &mut self,
         sender_id: AccountId,
@@ -166,7 +167,7 @@ impl Contract {
             ft_contract,
             amount,
             counter,
-            funded,
+            funded: _,
         }) = &drop
         {
             assert_eq!(
@@ -225,11 +226,11 @@ impl Contract {
                 NearToken::from_yoctonear(1),
                 MIN_GAS_FOR_FT_TRANSFER,
                 GasWeight(0),
-            );
+            ).detach();
         }
 
         // Return NEAR
-        Promise::new(funder.clone()).transfer(to_refund);
+        Promise::new(funder.clone()).transfer(to_refund).detach();
 
         true
     }

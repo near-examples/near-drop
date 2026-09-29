@@ -97,7 +97,7 @@ impl Contract {
 
         let drop = nft_drop::create(nft_contract);
         let drop_id = self.save_drop(drop);
-        self.save_drop_id_by_key(public_key, drop_id);
+        self.save_drop_id_by_key(public_key, drop_id).detach();
 
         drop_id
     }
@@ -130,7 +130,7 @@ impl Contract {
 
     fn save_drop_id_by_keys(&mut self, public_keys: &Vec<PublicKey>, drop_id: DropId) {
         for public_key in public_keys.iter() {
-            self.save_drop_id_by_key(public_key.clone(), drop_id.clone());
+            self.save_drop_id_by_key(public_key.clone(), drop_id.clone()).detach();
         }
     }
 

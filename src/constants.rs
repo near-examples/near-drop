@@ -4,7 +4,8 @@ pub type DropId = u32;
 
 // Allowance for the access key to cover GAS fees when the account is claimed.
 // This amount will not be "reserved" on the contract but must be available when GAS is burnt using the access key.
-pub const ACCESS_KEY_ALLOWANCE: NearToken = NearToken::from_millinear(30); // 0.03 N
+// Since NEP-642 (nearcore 2.13) prepaid gas is bought at >= 0.001 N/TGas, so this caps a key at ~100 TGas
+pub const ACCESS_KEY_ALLOWANCE: NearToken = NearToken::from_millinear(100); // 0.1 N
 
 // Cost of creating a new account with longest possible name
 pub const CREATE_ACCOUNT_FEE: NearToken = NearToken::from_yoctonear(0); // 0 N
