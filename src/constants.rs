@@ -32,11 +32,3 @@ pub const NFT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas
     NFT Linkdrop: 0.00242 $NEAR
 */
 pub const ACCESS_KEY_STORAGE: NearToken = NearToken::from_millinear(1); // 0.001 N
-
-// Bytes used to store common data types
-pub const PK_STORAGE: u128 = 32; // PublicKey
-pub const ID_STORAGE: u128 = 4; // PublicKey
-pub const ACC_STORAGE: u128 = 4 + 8; // AccountId
-pub const ENUM_STORAGE: u128 = 1; // Enum
-pub const TOKEN_AMOUNT_STORAGE: u128 = 16; // NearToken
-pub const NFT_TOKEN_ID_STORAGE: u128 = 16; // String

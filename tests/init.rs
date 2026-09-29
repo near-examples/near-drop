@@ -57,6 +57,24 @@ pub async fn init_ft_contract(
     return Ok(ft_contract);
 }
 
+pub async fn init_failing_ft_contract(
+    worker: &Worker<impl DevNetwork>,
+    creator: &Account,
+) -> anyhow::Result<Contract> {
+    let ft_wasm = near_workspaces::compile_project("./tests/contracts/failing_ft").await?;
+    let ft_contract = worker.dev_deploy(&ft_wasm).await?;
+
+    let res = ft_contract
+        .call("new_default_meta")
+        .args_json(json!({"owner_id": creator.id(), "name": "token", "symbol": "tt", "total_supply": "1000000000000000000000000" }))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(res.is_success());
+
+    return Ok(ft_contract);
+}
+
 pub async fn init_nft_contract(
     worker: &Worker<impl DevNetwork>,
     creator: &Account,
