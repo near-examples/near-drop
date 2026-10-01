@@ -49,14 +49,14 @@ pub fn required_deposit_per_key(drop_amount: NearToken) -> NearToken {
 
 // Storage is measured on-chain by the caller (see Contract::charge_storage_and_refund),
 // so this only validates the business rule and builds the drop.
-pub fn create(amount_per_drop: NearToken, num_of_keys: u32) -> Drop {
+pub fn create(funder: AccountId, amount_per_drop: NearToken, num_of_keys: u32) -> Drop {
     assert!(
         amount_per_drop.ge(&NearToken::from_yoctonear(1)),
         "Amount per drop should be at least 1 yN"
     );
 
     Drop::NEAR(NearDrop {
-        funder: env::predecessor_account_id(),
+        funder,
         amount: amount_per_drop,
         counter: num_of_keys,
     })

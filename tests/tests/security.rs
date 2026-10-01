@@ -157,9 +157,8 @@ async fn resolve_nft_claim_must_be_private() -> anyhow::Result<()> {
 
 // --- Finding 2: storage charged in yocto (not NEAR) + empty keys accepted ---
 
-// Storing a drop costs ~0.001 NEAR of real storage, but required_storage_drop
-// returns the byte count as yoctoNEAR. An attacker creates drops for a few
-// hundred thousand yocto and forces the contract to lock its own balance.
+// Storing a drop costs real storage (bytes × storage_byte_cost). Paying only
+// the per-key fees must not be enough, or the contract locks its own balance.
 #[tokio::test]
 async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
@@ -167,23 +166,24 @@ async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
 
-    // No keys -> per-key cost is 0, so only the (undercharged) storage is checked.
-    // 100_000 yocto is far below the real storage cost of persisting a Drop.
-    let attack = attacker
-        .call(contract.id(), "create_near_drop")
-        .args_json(json!({
-            "public_keys": Vec::<String>::new(),
-            "amount_per_drop": NearToken::from_yoctonear(1),
-        }))
-        .deposit(NearToken::from_yoctonear(100_000))
-        .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+    let create = |public_keys: Vec<near_workspaces::types::PublicKey>, deposit: NearToken| {
+        attacker
+            .call(contract.id(), "create_near_drop")
+            .args_json(json!({"public_keys": public_keys, "amount_per_drop": NearToken::from_yoctonear(1)}))
+            .deposit(deposit)
+            .gas(ONE_HUNDRED_TGAS)
+            .transact()
+    };
 
-    assert!(
-        attack.is_failure(),
-        "create_near_drop must charge real storage cost and reject empty key sets"
-    );
+    // Empty key sets have no per-key cost at all, so they must be rejected outright.
+    let empty = create(vec![], NearToken::from_near(1)).await?;
+    assert!(empty.is_failure(), "create_near_drop must reject empty key sets");
+
+    // 1 yocto + ACCESS_KEY_ALLOWANCE + ACCESS_KEY_STORAGE: per-key fees, zero storage.
+    let fees_only = NearToken::from_millinear(101).saturating_add(NearToken::from_yoctonear(1));
+    let pk = SecretKey::from_random(KeyType::ED25519).public_key();
+    let attack = create(vec![pk], fees_only).await?;
+    assert!(attack.is_failure(), "create_near_drop must charge the drop's storage on top of per-key fees");
     Ok(())
 }
 
@@ -403,7 +403,8 @@ async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
         .await?
         .unwrap();
     let mallory_token = "666";
-    let _ = mallory
+    // Only the NFT contract owner (creator) can mint, so mint it for mallory.
+    let mint = creator
         .call(nft_contract.id(), "nft_mint")
         .args_json(json!({
             "token_id": mallory_token,
@@ -414,6 +415,7 @@ async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
         .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
+    assert!(mint.is_success(), "mint failed: {:?}", mint.failures());
 
     // Creator opens a drop (not yet funded).
     let secret_key = SecretKey::from_random(KeyType::ED25519);

@@ -59,16 +59,18 @@ impl Getters for NFTDrop {
 }
 
 pub fn required_deposit_per_key() -> NearToken {
-  CREATE_ACCOUNT_FEE
-      .saturating_add(ACCESS_KEY_ALLOWANCE)
-      .saturating_add(ACCESS_KEY_STORAGE)
+    // ponytail: unused token_id padding isn't refunded (<= 0.00128 N per drop).
+    CREATE_ACCOUNT_FEE
+        .saturating_add(ACCESS_KEY_ALLOWANCE)
+        .saturating_add(ACCESS_KEY_STORAGE)
+        .saturating_add(env::storage_byte_cost().saturating_mul(MAX_TOKEN_ID_LEN as u128))
 }
 
 // Storage is measured on-chain by the caller (see Contract::charge_storage_and_refund),
 // so this only builds the drop.
-pub fn create(nft_contract: AccountId) -> Drop {
+pub fn create(funder: AccountId, nft_contract: AccountId) -> Drop {
     Drop::NFT(NFTDrop {
-        funder: env::predecessor_account_id(),
+        funder,
         nft_contract,
         token_id: "".to_string(),
     })
@@ -85,6 +87,10 @@ impl Contract {
         approval_id: u32,
         msg: String,
     ) -> PromiseOrValue<U128> {
+        assert!(
+            token_id.len() <= MAX_TOKEN_ID_LEN,
+            "token_id longer than {MAX_TOKEN_ID_LEN} bytes"
+        );
         let drop_id: u32 = msg.parse().unwrap();
         let token_id_to_drop = token_id.clone();
         let drop = self.drop_by_id.get(&drop_id).expect("Missing Drop");
@@ -100,6 +106,8 @@ impl Contract {
                 nft_contract == &env::predecessor_account_id(),
                 "Wrong NFT contract, expected {nft_contract}",
             );
+            // Only the funder's token can fund their drop.
+            assert!(&owner_id == funder, "Only the drop funder can fund it");
 
             // Update and insert again
             self.drop_by_id.insert(
