@@ -82,6 +82,7 @@ impl Contract {
 
         // Refund the funder for exactly the storage this claim frees (the map
         // entries removed above). Mirrors the measured charge done on creation.
+        self.flush_maps();
         let freed = storage_before.saturating_sub(env::storage_usage());
         let storage_refund = env::storage_byte_cost().saturating_mul(freed as u128);
 

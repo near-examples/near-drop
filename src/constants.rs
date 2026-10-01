@@ -23,6 +23,9 @@ pub const MIN_GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5); // 5 TGas
 pub const FT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas
 
 // NFT
+// token_id is only known in nft_on_approve (no deposit there), so create_nft_drop
+// pre-pays storage for the longest one allowed.
+pub const MAX_TOKEN_ID_LEN: usize = 128;
 pub const MIN_GAS_FOR_NFT_TRANSFER: Gas = Gas::from_tgas(5); // 5 TGas
 pub const NFT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas
 
