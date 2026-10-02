@@ -7,7 +7,7 @@ use near_sdk::{
 };
 
 use crate::constants::*;
-use crate::drop_types::{Dropper, Getters};
+use crate::drop_types::Dropper;
 use crate::Drop;
 use crate::{Contract, ContractExt};
 
@@ -15,13 +15,13 @@ use crate::{Contract, ContractExt};
 #[near(serializers = [json])]
 #[borsh(crate = "near_sdk::borsh")]
 pub struct NFTDrop {
-    funder: AccountId,       // Account which created the drop and funded it
-    token_id: String,        // Id of token which will be transfer to claiming user
-    nft_contract: AccountId, // Contract of non-fungible token which will be transfer to claiming user
+    pub(crate) funder: AccountId, // Account which created the drop and funded it
+    pub(crate) token_id: String,  // Id of token which will be transfer to claiming user
+    pub(crate) nft_contract: AccountId, // Contract of non-fungible token which will be transfer to claiming user
 }
 
 impl Dropper for NFTDrop {
-    fn promise_for_claiming(&self, account_id: AccountId) -> Promise {
+    fn promise_for_claiming(&self, account_id: AccountId, storage_refund: NearToken) -> Promise {
         assert_ne!(self.token_id, "", "No tokens to drop");
 
         let transfer_args = json!({"receiver_id": account_id, "token_id": self.token_id})
@@ -29,39 +29,30 @@ impl Dropper for NFTDrop {
             .into_bytes()
             .to_vec();
 
-        Promise::new(self.nft_contract.clone()).function_call_weight(
-            "nft_transfer".to_string(),
-            transfer_args,
-            NearToken::from_yoctonear(1),
-            MIN_GAS_FOR_NFT_TRANSFER,
-            GasWeight(0),
-        )
-    }
-
-    fn promise_to_resolve_claim(&self, account_created: bool, storage_refund: NearToken) -> Promise {
-        Contract::ext(env::current_account_id())
-            .with_static_gas(NFT_CLAIM_CALLBACK_GAS)
-            .with_unused_gas_weight(0)
-            .resolve_nft_claim(
-                account_created,
-                storage_refund,
-                self.funder.clone(),
-                self.token_id.clone(),
-                self.nft_contract.clone(),
+        Promise::new(self.nft_contract.clone())
+            .function_call_weight(
+                "nft_transfer".to_string(),
+                transfer_args,
+                NearToken::from_yoctonear(1),
+                MIN_GAS_FOR_NFT_TRANSFER,
+                GasWeight(0),
+            )
+            .then(
+                Contract::ext(env::current_account_id())
+                    .with_static_gas(NFT_CLAIM_CALLBACK_GAS)
+                    .with_unused_gas_weight(0)
+                    .resolve_nft_claim(
+                        storage_refund,
+                        self.funder.clone(),
+                        self.token_id.clone(),
+                        self.nft_contract.clone(),
+                    ),
             )
     }
 }
 
-impl Getters for NFTDrop {
-    fn get_counter(&self) -> Result<u32, &str> {
-        Err("There is no counter field for NFT drop structure")
-    }
-}
-
 pub fn required_deposit_per_key() -> NearToken {
-    // ponytail: unused token_id padding isn't refunded (<= 0.00128 N per drop).
-    CREATE_ACCOUNT_FEE
-        .saturating_add(ACCESS_KEY_ALLOWANCE)
+    CLAIM_GAS_BUDGET
         .saturating_add(ACCESS_KEY_STORAGE)
         .saturating_add(env::storage_byte_cost().saturating_mul(MAX_TOKEN_ID_LEN as u128))
 }
@@ -129,29 +120,24 @@ impl Contract {
     #[private]
     #[allow(unused_variables)]
     pub fn resolve_nft_claim(
-        account_created: bool,
         storage_refund: NearToken,
         funder: AccountId,
         token_id: String,
         nft_contract: AccountId,
         #[callback_result] result: Result<(), PromiseError>,
     ) -> bool {
-        let mut to_refund = ACCESS_KEY_STORAGE.saturating_add(storage_refund);
-
-        if !account_created {
-            to_refund = to_refund.saturating_add(CREATE_ACCOUNT_FEE);
-        }
+        let to_refund = ACCESS_KEY_STORAGE.saturating_add(storage_refund);
 
         if result.is_err() {
             log!(
                 "There is error during claiming the drop: {:?}",
-                result.err().unwrap()
+                result.as_ref().err().unwrap()
             )
         }
 
         // Return NEAR
         Promise::new(funder.clone()).transfer(to_refund).detach();
 
-        true
+        result.is_ok()
     }
 }
