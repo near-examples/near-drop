@@ -9,7 +9,7 @@ use near_workspaces::{
 };
 
 use crate::init::{init, init_failing_ft_contract, init_ft_contract, init_nft_contract};
-use crate::utils::{CLAIM_GAS, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
+use crate::utils::{CLAIM_GAS, CLAIM_GAS_BUDGET, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
 
 // Create a 1-key FT drop and fund it. Returns (drop_id, secret_key).
 async fn create_and_fund_ft_drop(
@@ -21,17 +21,17 @@ async fn create_and_fund_ft_drop(
     let secret_key = SecretKey::from_random(KeyType::ED25519);
 
     let create = creator
-        .call(contract.id(), "create_ft_drop")
-        .args_json(json!({
+        .call(contract.id(), "create_drop")
+        .args_json(json!({"drop": {"FT": {
             "public_keys": vec![secret_key.public_key()],
             "ft_contract": ft_contract.id(),
             "amount_per_drop": amount_per_drop,
-        }))
+        }}}))
         .deposit(NearToken::from_millinear(407))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
-    assert!(create.is_success(), "create_ft_drop failed: {create:#?}");
+    assert!(create.is_success(), "create_drop failed: {create:#?}");
     let drop_id: u32 = create.json()?;
 
     // Register the drop contract on the FT so it can hold the tokens.
@@ -85,8 +85,7 @@ async fn resolve_near_claim_must_be_private() -> anyhow::Result<()> {
     let attack = attacker
         .call(contract.id(), "resolve_near_claim")
         .args_json(json!({
-            "account_created": false,
-            "drop_deleted": true,
+                        "drop_deleted": true,
             "funder": attacker.id(),
             "amount": NearToken::from_near(3),
         }))
@@ -108,23 +107,34 @@ async fn resolve_ft_claim_must_be_private() -> anyhow::Result<()> {
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
 
-    let attack = attacker
-        .call(contract.id(), "resolve_ft_claim")
-        .args_json(json!({
-            "account_created": false,
-            "drop_deleted": true,
-            "funder": attacker.id(),
-            "amount": NearToken::from_near(1),
-            "ft_contract": "ft.near",
-        }))
-        .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
-
-    assert!(
-        attack.is_failure(),
-        "resolve_ft_claim must reject direct external calls (needs #[private])"
-    );
+    for (method, args) in [
+        (
+            "resolve_ft_claim",
+            json!({
+                "storage_refund": "0", "funder": attacker.id(), "amount": "1",
+                "ft_contract": "ft.near", "refund_registration": true,
+            }),
+        ),
+        (
+            "resolve_ft_registration",
+            json!({
+                "account_id": attacker.id(), "storage_refund": "0",
+                "drop": {"funder": attacker.id(), "amount": "1", "ft_contract": "ft.near", "counter": 1, "funded": true},
+            }),
+        ),
+    ] {
+        let attack = attacker
+            .call(contract.id(), method)
+            .args_json(args)
+            .gas(ONE_HUNDRED_TGAS)
+            .transact()
+            .await?;
+        assert!(attack.is_failure(), "{method} must reject external calls");
+        assert!(
+            format!("{:?}", attack.failures()).contains("private"),
+            "{attack:?}"
+        );
+    }
     Ok(())
 }
 
@@ -138,8 +148,7 @@ async fn resolve_nft_claim_must_be_private() -> anyhow::Result<()> {
     let attack = attacker
         .call(contract.id(), "resolve_nft_claim")
         .args_json(json!({
-            "account_created": false,
-            "drop_deleted": true,
+                        "drop_deleted": true,
             "funder": attacker.id(),
             "token_id": "1",
             "nft_contract": "nft.near",
@@ -157,9 +166,8 @@ async fn resolve_nft_claim_must_be_private() -> anyhow::Result<()> {
 
 // --- Finding 2: storage charged in yocto (not NEAR) + empty keys accepted ---
 
-// Storing a drop costs ~0.001 NEAR of real storage, but required_storage_drop
-// returns the byte count as yoctoNEAR. An attacker creates drops for a few
-// hundred thousand yocto and forces the contract to lock its own balance.
+// Storing a drop costs real storage (bytes × storage_byte_cost). Paying only
+// the per-key fees must not be enough, or the contract locks its own balance.
 #[tokio::test]
 async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
@@ -167,22 +175,28 @@ async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
 
-    // No keys -> per-key cost is 0, so only the (undercharged) storage is checked.
-    // 100_000 yocto is far below the real storage cost of persisting a Drop.
-    let attack = attacker
-        .call(contract.id(), "create_near_drop")
-        .args_json(json!({
-            "public_keys": Vec::<String>::new(),
-            "amount_per_drop": NearToken::from_yoctonear(1),
-        }))
-        .deposit(NearToken::from_yoctonear(100_000))
-        .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+    let create = |public_keys: Vec<near_workspaces::types::PublicKey>, deposit: NearToken| {
+        attacker
+            .call(contract.id(), "create_drop")
+            .args_json(json!({"drop": {"NEAR": {"public_keys": public_keys, "amount_per_drop": NearToken::from_yoctonear(1)}}}))
+            .deposit(deposit)
+            .gas(ONE_HUNDRED_TGAS)
+            .transact()
+    };
 
+    // Empty key sets have no per-key cost at all, so they must be rejected outright.
+    let empty = create(vec![], NearToken::from_near(1)).await?;
+    assert!(empty.is_failure(), "create_drop must reject empty key sets");
+
+    // 1 yocto + CLAIM_GAS_BUDGET + ACCESS_KEY_STORAGE: per-key fees, zero storage.
+    let fees_only = CLAIM_GAS_BUDGET
+        .saturating_add(NearToken::from_millinear(1))
+        .saturating_add(NearToken::from_yoctonear(1));
+    let pk = SecretKey::from_random(KeyType::ED25519).public_key();
+    let attack = create(vec![pk], fees_only).await?;
     assert!(
         attack.is_failure(),
-        "create_near_drop must charge real storage cost and reject empty key sets"
+        "create_drop must charge the drop's storage on top of per-key fees"
     );
     Ok(())
 }
@@ -201,11 +215,11 @@ async fn create_drop_must_reject_duplicate_keys() -> anyhow::Result<()> {
     let pk = secret_key.public_key();
 
     let attack = creator
-        .call(contract.id(), "create_near_drop")
-        .args_json(json!({
+        .call(contract.id(), "create_drop")
+        .args_json(json!({"drop": {"NEAR": {
             "public_keys": vec![pk.clone(), pk.clone()],
             "amount_per_drop": NearToken::from_near(1),
-        }))
+        }}}))
         .deposit(NearToken::from_millinear(2210))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
@@ -213,7 +227,7 @@ async fn create_drop_must_reject_duplicate_keys() -> anyhow::Result<()> {
 
     assert!(
         attack.is_failure(),
-        "create_near_drop must reject a key list containing duplicates"
+        "create_drop must reject a key list containing duplicates"
     );
     Ok(())
 }
@@ -233,11 +247,11 @@ async fn access_key_deleted_after_claim() -> anyhow::Result<()> {
     let pk = secret_key.public_key();
 
     let create = creator
-        .call(contract.id(), "create_near_drop")
-        .args_json(json!({
+        .call(contract.id(), "create_drop")
+        .args_json(json!({"drop": {"NEAR": {
             "public_keys": vec![pk.clone()],
             "amount_per_drop": NearToken::from_near(1),
-        }))
+        }}}))
         .deposit(NearToken::from_millinear(2810))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
@@ -263,56 +277,6 @@ async fn access_key_deleted_after_claim() -> anyhow::Result<()> {
     Ok(())
 }
 
-// --- Finding 8: resolve_account_create ignores Ok(false) from create_account ---
-
-// Claiming onto an already-existing account makes create_account return false.
-// The contract must not treat that as success and consume the drop.
-#[tokio::test]
-async fn claim_onto_existing_account_must_not_consume_drop() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
-    let root = worker.root_account().unwrap();
-    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
-
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
-    let pk = secret_key.public_key();
-
-    let create = creator
-        .call(contract.id(), "create_near_drop")
-        .args_json(json!({
-            "public_keys": vec![pk.clone()],
-            "amount_per_drop": NearToken::from_near(1),
-        }))
-        .deposit(NearToken::from_millinear(2810))
-        .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
-    let drop_id: u32 = create.json().unwrap();
-
-    // alice already exists, so create_account fails and returns Ok(false).
-    let claimer: Account = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
-    let _ = claimer
-        .call(contract.id(), "create_account_and_claim")
-        .args_json(json!({"account_id": alice.id()}))
-        .gas(crate::utils::CREATE_ACCOUNT_AND_CLAIM_GAS)
-        .transact()
-        .await?;
-
-    // The drop must survive a failed account creation.
-    let get_drop = creator
-        .call(contract.id(), "get_drop_by_id")
-        .args_json(json!({"drop_id": drop_id}))
-        .transact()
-        .await?;
-    assert!(
-        get_drop.is_success(),
-        "drop must not be consumed when create_account returns false"
-    );
-    Ok(())
-}
-
-// --- Finding 6: ft_on_transfer accepts funding an already-funded drop ---
-
-// A second FT transfer to a fully-funded drop must be refunded, not swallowed.
 #[tokio::test]
 async fn ft_on_transfer_refunds_already_funded_drop() -> anyhow::Result<()> {
     let worker = near_workspaces::sandbox().await?;
@@ -324,12 +288,12 @@ async fn ft_on_transfer_refunds_already_funded_drop() -> anyhow::Result<()> {
     let secret_key = SecretKey::from_random(KeyType::ED25519);
 
     let create = creator
-        .call(contract.id(), "create_ft_drop")
-        .args_json(json!({
+        .call(contract.id(), "create_drop")
+        .args_json(json!({"drop": {"FT": {
             "public_keys": vec![secret_key.public_key()],
             "ft_contract": ft_contract.id(),
             "amount_per_drop": amount_per_drop,
-        }))
+        }}}))
         .deposit(NearToken::from_millinear(407))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
@@ -403,7 +367,8 @@ async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
         .await?
         .unwrap();
     let mallory_token = "666";
-    let _ = mallory
+    // Only the NFT contract owner (creator) can mint, so mint it for mallory.
+    let mint = creator
         .call(nft_contract.id(), "nft_mint")
         .args_json(json!({
             "token_id": mallory_token,
@@ -414,12 +379,13 @@ async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
         .gas(ONE_HUNDRED_TGAS)
         .transact()
         .await?;
+    assert!(mint.is_success(), "mint failed: {:?}", mint.failures());
 
     // Creator opens a drop (not yet funded).
     let secret_key = SecretKey::from_random(KeyType::ED25519);
     let create = creator
-        .call(contract.id(), "create_nft_drop")
-        .args_json(json!({"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}))
+        .call(contract.id(), "create_drop")
+        .args_json(json!({"drop": {"NFT": {"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}}}))
         .deposit(NearToken::from_millinear(407))
         .gas(ONE_HUNDRED_TGAS)
         .transact()
@@ -452,42 +418,81 @@ async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
     Ok(())
 }
 
-// --- Registration accounting: funder must not overpay FT registration ---
+// --- Fixed registration budget and claim refunds ---
 
-// On a successful claim only the FT's real registration cost is spent; the
-// funder is refunded the pre-paid excess (FT_REGISTER minus the real cost).
+// Successful claims refund freed storage; FT registration uses a fixed budget.
 #[tokio::test]
-async fn ft_claim_refunds_registration_excess_to_funder() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
-    let root = worker.root_account().unwrap();
-    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
-    let ft_contract = init_ft_contract(&worker, &creator).await?;
+async fn ft_claim_with_fixed_registration_budget_refunds_storage() -> anyhow::Result<()> {
+    for registered in [false, true] {
+        let worker = near_workspaces::sandbox().await?;
+        let root = worker.root_account().unwrap();
+        let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
+        let ft_contract = init_ft_contract(&worker, &creator).await?;
 
-    let (_drop_id, secret_key) = create_and_fund_ft_drop(&contract, &creator, &ft_contract).await?;
+        let (_drop_id, secret_key) =
+            create_and_fund_ft_drop(&contract, &creator, &ft_contract).await?;
 
-    let funder_before = creator.view_account().await?.balance;
+        let cost: NearToken = contract
+            .view(contract.id(), "get_drop_cost")
+            .args_json(json!({"funder": creator.id(), "drop": {"FT": {
 
-    let claimer = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
-    let claim = claimer
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": alice.id()}))
-        .gas(CLAIM_GAS)
-        .transact()
-        .await?;
-    assert!(claim.is_success(), "claim failed: {claim:#?}");
+                "public_keys": [secret_key.public_key()],
+                "ft_contract": ft_contract.id(),
+                "amount_per_drop": NearToken::from_yoctonear(1),
+            }}}))
+            .await?
+            .json()?;
+        if registered {
+            creator
+                .call(ft_contract.id(), "storage_deposit")
+                .args_json(json!({"account_id": alice.id()}))
+                .deposit(NearToken::from_millinear(20))
+                .gas(ONE_HUNDRED_TGAS)
+                .transact()
+                .await?
+                .into_result()?;
+        }
+        // Settle gas refunds from creation/funding before measuring the claim refund.
+        worker.fast_forward(10).await?;
+        let funder_before = creator.view_account().await?.balance;
 
-    let refunded = creator
-        .view_account()
-        .await?
-        .balance
-        .saturating_sub(funder_before);
+        let claimer = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
+        let claim = claimer
+            .call(contract.id(), "claim_for")
+            .args_json(json!({"account_id": alice.id()}))
+            .gas(CLAIM_GAS)
+            .transact()
+            .await?;
+        assert!(claim.is_success(), "claim failed: {claim:#?}");
+        assert!(claim.receipt_failures().is_empty(), "{claim:?}");
+        assert!(claim.json::<bool>()?);
 
-    // Without the excess refund the funder would only get back ACCESS_KEY_STORAGE +
-    // freed storage (~0.0025 N). The unused FT_REGISTER excess (~0.011 N) pushes it past.
-    assert!(
-        refunded > NearToken::from_millinear(5),
-        "funder should be refunded the unused FT registration excess, got {refunded}"
-    );
+        let refunded = creator
+            .view_account()
+            .await?
+            .balance
+            .saturating_sub(funder_before);
+
+        assert_eq!(
+            refunded,
+            cost.saturating_sub(CLAIM_GAS_BUDGET)
+                .saturating_sub(if registered {
+                    NearToken::from_yoctonear(0)
+                } else {
+                    NearToken::from_yoctonear(1_260_000_000_000_000_000_000)
+                }),
+            "registration refunded exactly when skipped (registered={registered})"
+        );
+        let recipient_balance: String = ft_contract
+            .view("ft_balance_of")
+            .args_json(json!({"account_id": alice.id()}))
+            .await?
+            .json()?;
+        assert_eq!(
+            recipient_balance, "1",
+            "claim must register and pay the recipient"
+        );
+    }
     Ok(())
 }
 
@@ -495,41 +500,67 @@ async fn ft_claim_refunds_registration_excess_to_funder() -> anyhow::Result<()> 
 // the funder (the storage_deposit + ft_transfer batch reverts atomically).
 #[tokio::test]
 async fn ft_claim_failure_refunds_registration_to_funder() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
-    let root = worker.root_account().unwrap();
-    let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
-    // This FT's ft_transfer always panics, so the claim hits its failure branch.
-    let ft_contract = init_failing_ft_contract(&worker, &creator).await?;
+    for registered in [false, true] {
+        let worker = near_workspaces::sandbox().await?;
+        let root = worker.root_account().unwrap();
+        let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
+        // This FT's ft_transfer always panics, so the claim hits its failure branch.
+        let ft_contract = init_failing_ft_contract(&worker, &creator).await?;
 
-    let (_drop_id, secret_key) = create_and_fund_ft_drop(&contract, &creator, &ft_contract).await?;
+        let (_drop_id, secret_key) =
+            create_and_fund_ft_drop(&contract, &creator, &ft_contract).await?;
 
-    let funder_before = creator.view_account().await?.balance;
+        let cost: NearToken = contract
+            .view(contract.id(), "get_drop_cost")
+            .args_json(json!({"funder": creator.id(), "drop": {"FT": {
 
-    let claimer = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
-    let claim = claimer
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": alice.id()}))
-        .gas(CLAIM_GAS)
-        .transact()
-        .await?;
+                "public_keys": [secret_key.public_key()],
+                "ft_contract": ft_contract.id(),
+                "amount_per_drop": NearToken::from_yoctonear(1),
+            }}}))
+            .await?
+            .json()?;
+        if registered {
+            creator
+                .call(ft_contract.id(), "storage_deposit")
+                .args_json(json!({"account_id": alice.id()}))
+                .deposit(NearToken::from_millinear(20))
+                .gas(ONE_HUNDRED_TGAS)
+                .transact()
+                .await?
+                .into_result()?;
+        }
+        // Settle gas refunds from creation/funding before measuring the claim refund.
+        worker.fast_forward(10).await?;
+        let funder_before = creator.view_account().await?.balance;
 
-    // ft_transfer panics -> the claim batch fails, but resolve_ft_claim handles it.
-    assert!(
-        claim.receipt_failures().len() > 0,
-        "ft_transfer should have failed"
-    );
-    assert_eq!(claim.json::<bool>()?, true);
+        let claimer = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
+        let claim = claimer
+            .call(contract.id(), "claim_for")
+            .args_json(json!({"account_id": alice.id()}))
+            .gas(CLAIM_GAS)
+            .transact()
+            .await?;
 
-    let refunded = creator
-        .view_account()
-        .await?
-        .balance
-        .saturating_sub(funder_before);
+        // ft_transfer panics -> the claim batch fails, but resolve_ft_claim handles it.
+        assert!(
+            claim.receipt_failures().len() > 0,
+            "ft_transfer should have failed"
+        );
+        assert!(!claim.json::<bool>()?);
 
-    // The whole pre-paid FT_REGISTER (~0.0125 N) is returned on failure.
-    assert!(
-        refunded > NearToken::from_millinear(10),
-        "funder must be refunded FT_REGISTER when the claim fails, got {refunded}"
-    );
+        let refunded = creator
+            .view_account()
+            .await?
+            .balance
+            .saturating_sub(funder_before);
+
+        // Return the fixed registration budget along with freed storage.
+        assert_eq!(
+            refunded,
+            cost.saturating_sub(CLAIM_GAS_BUDGET),
+            "funder must be refunded FT_REGISTER when the claim fails"
+        );
+    }
     Ok(())
 }

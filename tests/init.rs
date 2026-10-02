@@ -6,9 +6,6 @@ pub async fn init(
     root: &Account,
     initial_contract_balance: NearToken,
 ) -> anyhow::Result<(Account, Account, Account)> {
-    let root_wasm = near_workspaces::compile_project("./tests/contracts/root").await?;
-    let _ = root.deploy(&root_wasm).await?;
-
     let contract = root
         .create_subaccount("contract")
         .initial_balance(initial_contract_balance)
@@ -30,7 +27,7 @@ pub async fn init(
 
     let res = contract
         .call(contract.id(), "new")
-        .args_json(json!({"top_level_account": root.id()}))
+        .args_json(json!({}))
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;

@@ -2,27 +2,27 @@ use near_sdk::{Gas, NearToken};
 
 pub type DropId = u32;
 
-// Allowance for the access key to cover GAS fees when the account is claimed.
-// This amount will not be "reserved" on the contract but must be available when GAS is burnt using the access key.
-// Since NEP-642 (nearcore 2.13) prepaid gas is bought at >= 0.001 N/TGas, so this caps a key at ~100 TGas
-pub const ACCESS_KEY_ALLOWANCE: NearToken = NearToken::from_millinear(100); // 0.1 N
+// Covers a 32 TGas claim at NEP-642's minimum purchase price, plus transaction fees.
+// This is a spending limit, not a balance reserved when the key is added.
+pub const ACCESS_KEY_ALLOWANCE: NearToken = NearToken::from_millinear(33); // 0.033 N
 
-// Cost of creating a new account with longest possible name
-pub const CREATE_ACCOUNT_FEE: NearToken = NearToken::from_yoctonear(0); // 0 N
+// Funder contribution per key: covers 32 TGas burnt at 0.0001 NEAR/TGas.
+// A shared liquid balance fronts the larger purchase price until gas refunds arrive.
+pub const CLAIM_GAS_BUDGET: NearToken = NearToken::from_yoctonear(3_200_000_000_000_000_000_000);
 
-// Minimum GAS for callback. Any unspent GAS will be added according to the weights)
-pub const CREATE_CALLBACK_GAS: Gas = Gas::from_tgas(55); // 55 TGas
-pub const CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(5); // 5 TGas
-
-// Actual amount of GAS to attach when creating a new account. No unspent GAS will be attached on top of this (weight of 0)
-pub const GAS_FOR_CREATE_ACCOUNT: Gas = Gas::from_tgas(28); // 28 TGas
+pub const CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(5);
 
 // FT
 pub const MIN_GAS_FOR_FT_STORAGE_DEPOSIT: Gas = Gas::from_tgas(5); // 5 TGas
 pub const MIN_GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5); // 5 TGas
-pub const FT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas
+pub const FT_STORAGE_QUERY_GAS: Gas = Gas::from_tgas(2);
+pub const FT_REGISTRATION_CALLBACK_GAS: Gas = Gas::from_tgas(23);
+pub const FT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(8); // Includes a possible token refund
 
 // NFT
+// token_id is only known in nft_on_approve (no deposit there), so create_drop
+// pre-pays storage for the longest one allowed.
+pub const MAX_TOKEN_ID_LEN: usize = 128;
 pub const MIN_GAS_FOR_NFT_TRANSFER: Gas = Gas::from_tgas(5); // 5 TGas
 pub const NFT_CLAIM_CALLBACK_GAS: Gas = Gas::from_tgas(10); // 10 TGas
 
