@@ -7,13 +7,19 @@ The smart contract exposes multiple methods to handle creating NEAR/FT/NFT drops
 Install [`cargo-near`](https://github.com/near/cargo-near) and run:
 
 ```bash
+cargo install cargo-near --version 0.21.1 --locked --no-default-features
+```
+
+```bash
 cargo near build
 ```
 
 ## How to Test Locally?
 
+Tests build the drop, FT, failing FT, and NFT contracts from source and run against local `near-sandbox` nodes using `near-api`. No public network account is needed. The gas benchmark remains opt-in.
+
 ```bash
-cargo test
+cargo test --locked -- --test-threads=2
 ```
 
 ## How to Interact?

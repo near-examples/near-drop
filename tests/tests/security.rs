@@ -2,11 +2,9 @@
 // contract and asserts the SECURE behaviour. They fail on the current
 // (vulnerable) code and should pass once each finding is fixed.
 
+use crate::init::TestAccount as Account;
+use near_api::types::SecretKey;
 use near_sdk::{serde_json::json, NearToken};
-use near_workspaces::{
-    types::{KeyType, SecretKey},
-    Account,
-};
 
 use crate::init::{init, init_failing_ft_contract, init_ft_contract, init_nft_contract};
 use crate::utils::{CLAIM_GAS, CLAIM_GAS_BUDGET, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
@@ -15,45 +13,60 @@ use crate::utils::{CLAIM_GAS, CLAIM_GAS_BUDGET, INITIAL_CONTRACT_BALANCE, ONE_HU
 async fn create_and_fund_ft_drop(
     contract: &Account,
     creator: &Account,
-    ft_contract: &near_workspaces::Contract,
+    ft_contract: &crate::init::TestAccount,
 ) -> anyhow::Result<(u32, SecretKey)> {
     let amount_per_drop = NearToken::from_yoctonear(1);
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
+    let secret_key = near_api::signer::generate_secret_key().expect("generate test key");
 
-    let create = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"FT": {
-            "public_keys": vec![secret_key.public_key()],
-            "ft_contract": ft_contract.id(),
-            "amount_per_drop": amount_per_drop,
-        }}}))
+    let create = near_api::Contract(contract.id().clone())
+        .call_function(
+            "create_drop",
+            json!({"drop": {"FT": {
+                "public_keys": vec![secret_key.public_key()],
+                "ft_contract": ft_contract.id(),
+                "amount_per_drop": amount_per_drop,
+            }}}),
+        )
+        .transaction()
         .deposit(NearToken::from_millinear(407))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(create.is_success(), "create_drop failed: {create:#?}");
     let drop_id: u32 = create.json()?;
 
     // Register the drop contract on the FT so it can hold the tokens.
-    let _ = creator
-        .call(ft_contract.id(), "storage_deposit")
-        .args_json(json!({"account_id": contract.id()}))
+    let _ = near_api::Contract(ft_contract.id().clone())
+        .call_function("storage_deposit", json!({"account_id": contract.id()}))
+        .transaction()
         .deposit(NearToken::from_yoctonear(12_500_000_000_000_000_000_000))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
 
-    let fund = creator
-        .call(ft_contract.id(), "ft_transfer_call")
-        .args_json(json!({
-            "receiver_id": contract.id(),
-            "amount": amount_per_drop,
-            "msg": drop_id.to_string(),
-        }))
+    let fund = near_api::Contract(ft_contract.id().clone())
+        .call_function(
+            "ft_transfer_call",
+            json!({
+                "receiver_id": contract.id(),
+                "amount": amount_per_drop,
+                "msg": drop_id.to_string(),
+            }),
+        )
+        .transaction()
         .deposit(NearToken::from_yoctonear(1))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(fund.is_success(), "funding failed: {fund:#?}");
 
     Ok((drop_id, secret_key))
@@ -63,11 +76,8 @@ async fn create_and_fund_ft_drop(
 // Tests where the attacker is the *signer* need an account that can pay gas.
 async fn funded_attacker(root: &Account) -> anyhow::Result<Account> {
     Ok(root
-        .create_subaccount("attacker")
-        .initial_balance(NearToken::from_near(10))
-        .transact()
-        .await?
-        .unwrap())
+        .create_subaccount("attacker", NearToken::from_near(10))
+        .await?)
 }
 
 // --- Finding 1: resolve_* callbacks are not #[private] -> anyone can drain ---
@@ -77,21 +87,27 @@ async fn funded_attacker(root: &Account) -> anyhow::Result<Account> {
 // refunds `amount` to any `funder` the attacker names -> contract drain.
 #[tokio::test]
 async fn resolve_near_claim_must_be_private() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
 
-    let attack = attacker
-        .call(contract.id(), "resolve_near_claim")
-        .args_json(json!({
-                        "drop_deleted": true,
-            "funder": attacker.id(),
-            "amount": NearToken::from_near(3),
-        }))
+    let attack = near_api::Contract(contract.id().clone())
+        .call_function(
+            "resolve_near_claim",
+            json!({
+                            "drop_deleted": true,
+                "funder": attacker.id(),
+                "amount": NearToken::from_near(3),
+            }),
+        )
+        .transaction()
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(attacker.id().clone(), attacker.signer.clone())
+        .send_to(&attacker.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
 
     assert!(
         attack.is_failure(),
@@ -102,7 +118,7 @@ async fn resolve_near_claim_must_be_private() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn resolve_ft_claim_must_be_private() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
@@ -123,12 +139,15 @@ async fn resolve_ft_claim_must_be_private() -> anyhow::Result<()> {
             }),
         ),
     ] {
-        let attack = attacker
-            .call(contract.id(), method)
-            .args_json(args)
+        let attack = near_api::Contract(contract.id().clone())
+            .call_function(method, args)
+            .transaction()
             .gas(ONE_HUNDRED_TGAS)
-            .transact()
-            .await?;
+            .with_signer(attacker.id().clone(), attacker.signer.clone())
+            .send_to(&attacker.network)
+            .await?
+            .into_full()
+            .expect("final transaction outcome");
         assert!(attack.is_failure(), "{method} must reject external calls");
         assert!(
             format!("{:?}", attack.failures()).contains("private"),
@@ -140,22 +159,28 @@ async fn resolve_ft_claim_must_be_private() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn resolve_nft_claim_must_be_private() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
 
-    let attack = attacker
-        .call(contract.id(), "resolve_nft_claim")
-        .args_json(json!({
-                        "drop_deleted": true,
-            "funder": attacker.id(),
-            "token_id": "1",
-            "nft_contract": "nft.near",
-        }))
+    let attack = near_api::Contract(contract.id().clone())
+        .call_function(
+            "resolve_nft_claim",
+            json!({
+                            "drop_deleted": true,
+                "funder": attacker.id(),
+                "token_id": "1",
+                "nft_contract": "nft.near",
+            }),
+        )
+        .transaction()
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(attacker.id().clone(), attacker.signer.clone())
+        .send_to(&attacker.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
 
     assert!(
         attack.is_failure(),
@@ -170,18 +195,17 @@ async fn resolve_nft_claim_must_be_private() -> anyhow::Result<()> {
 // the per-key fees must not be enough, or the contract locks its own balance.
 #[tokio::test]
 async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, _creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let attacker = funded_attacker(&root).await?;
 
-    let create = |public_keys: Vec<near_workspaces::types::PublicKey>, deposit: NearToken| {
-        attacker
-            .call(contract.id(), "create_drop")
-            .args_json(json!({"drop": {"NEAR": {"public_keys": public_keys, "amount_per_drop": NearToken::from_yoctonear(1)}}}))
+    let create = |public_keys: Vec<near_api::types::PublicKey>, deposit: NearToken| {
+        near_api::Contract(contract.id().clone()).call_function("create_drop", json!({"drop": {"NEAR": {"public_keys": public_keys, "amount_per_drop": NearToken::from_yoctonear(1)}}})).transaction()
             .deposit(deposit)
             .gas(ONE_HUNDRED_TGAS)
-            .transact()
+            .with_signer(attacker.id().clone(), attacker.signer.clone())
+        .send_to(&attacker.network)
     };
 
     // Empty key sets have no per-key cost at all, so they must be rejected outright.
@@ -192,7 +216,9 @@ async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
     let fees_only = CLAIM_GAS_BUDGET
         .saturating_add(NearToken::from_millinear(1))
         .saturating_add(NearToken::from_yoctonear(1));
-    let pk = SecretKey::from_random(KeyType::ED25519).public_key();
+    let pk = near_api::signer::generate_secret_key()
+        .expect("generate test key")
+        .public_key();
     let attack = create(vec![pk], fees_only).await?;
     assert!(
         attack.is_failure(),
@@ -207,23 +233,29 @@ async fn create_drop_must_charge_real_storage_cost() -> anyhow::Result<()> {
 // leaving an unrecoverable drop with locked funds. Creation must reject dupes.
 #[tokio::test]
 async fn create_drop_must_reject_duplicate_keys() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
 
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
+    let secret_key = near_api::signer::generate_secret_key().expect("generate test key");
     let pk = secret_key.public_key();
 
-    let attack = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"NEAR": {
-            "public_keys": vec![pk.clone(), pk.clone()],
-            "amount_per_drop": NearToken::from_near(1),
-        }}}))
+    let attack = near_api::Contract(contract.id().clone())
+        .call_function(
+            "create_drop",
+            json!({"drop": {"NEAR": {
+                "public_keys": vec![pk.clone(), pk.clone()],
+                "amount_per_drop": NearToken::from_near(1),
+            }}}),
+        )
+        .transaction()
         .deposit(NearToken::from_millinear(2210))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
 
     assert!(
         attack.is_failure(),
@@ -239,39 +271,56 @@ async fn create_drop_must_reject_duplicate_keys() -> anyhow::Result<()> {
 // contract gas and the storage refund is unbacked.
 #[tokio::test]
 async fn access_key_deleted_after_claim() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
 
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
+    let secret_key = near_api::signer::generate_secret_key().expect("generate test key");
     let pk = secret_key.public_key();
 
-    let create = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"NEAR": {
-            "public_keys": vec![pk.clone()],
-            "amount_per_drop": NearToken::from_near(1),
-        }}}))
+    let create = near_api::Contract(contract.id().clone())
+        .call_function(
+            "create_drop",
+            json!({"drop": {"NEAR": {
+                "public_keys": vec![pk.clone()],
+                "amount_per_drop": NearToken::from_near(1),
+            }}}),
+        )
+        .transaction()
         .deposit(NearToken::from_millinear(2810))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(create.is_success());
 
     // Key exists on the contract right after creation.
-    assert!(contract.view_access_key(&pk).await.is_ok());
+    assert!(near_api::Account(contract.id().clone())
+        .access_key(pk.clone())
+        .fetch_from(&contract.network)
+        .await
+        .is_ok());
 
     let claimer: Account = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
-    let claim = claimer
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": alice.id()}))
+    let claim = near_api::Contract(contract.id().clone())
+        .call_function("claim_for", json!({"account_id": alice.id()}))
+        .transaction()
         .gas(CLAIM_GAS)
-        .transact()
-        .await?;
+        .with_signer(claimer.id().clone(), claimer.signer.clone())
+        .send_to(&claimer.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(claim.is_success());
 
     assert!(
-        contract.view_access_key(&pk).await.is_err(),
+        near_api::Account(contract.id().clone())
+            .access_key(pk.clone())
+            .fetch_from(&contract.network)
+            .await
+            .is_err(),
         "access key must be deleted once the drop is fully claimed"
     );
     Ok(())
@@ -279,67 +328,91 @@ async fn access_key_deleted_after_claim() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn ft_on_transfer_refunds_already_funded_drop() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let ft_contract = init_ft_contract(&worker, &creator).await?;
 
     let amount_per_drop = NearToken::from_yoctonear(1);
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
+    let secret_key = near_api::signer::generate_secret_key().expect("generate test key");
 
-    let create = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"FT": {
-            "public_keys": vec![secret_key.public_key()],
-            "ft_contract": ft_contract.id(),
-            "amount_per_drop": amount_per_drop,
-        }}}))
+    let create = near_api::Contract(contract.id().clone())
+        .call_function(
+            "create_drop",
+            json!({"drop": {"FT": {
+                "public_keys": vec![secret_key.public_key()],
+                "ft_contract": ft_contract.id(),
+                "amount_per_drop": amount_per_drop,
+            }}}),
+        )
+        .transaction()
         .deposit(NearToken::from_millinear(407))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     let drop_id: u32 = create.json().unwrap();
 
     // Register the contract on the FT so transfers land.
-    let _ = creator
-        .call(ft_contract.id(), "storage_deposit")
-        .args_json(json!({"account_id": contract.id()}))
+    let _ = near_api::Contract(ft_contract.id().clone())
+        .call_function("storage_deposit", json!({"account_id": contract.id()}))
+        .transaction()
         .deposit(NearToken::from_yoctonear(12_500_000_000_000_000_000_000))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
 
     let fund = |amount: NearToken| {
-        creator
-            .call(ft_contract.id(), "ft_transfer_call")
-            .args_json(json!({
-                "receiver_id": contract.id(),
-                "amount": amount,
-                "msg": drop_id.to_string(),
-            }))
+        near_api::Contract(ft_contract.id().clone())
+            .call_function(
+                "ft_transfer_call",
+                json!({
+                    "receiver_id": contract.id(),
+                    "amount": amount,
+                    "msg": drop_id.to_string(),
+                }),
+            )
+            .transaction()
             .deposit(NearToken::from_yoctonear(1))
             .gas(ONE_HUNDRED_TGAS)
     };
 
     // First (legitimate) funding.
-    assert!(fund(amount_per_drop).transact().await?.is_success());
-
-    let balance_before_second = ft_contract
-        .call("ft_balance_of")
-        .args_json(json!({"account_id": creator.id()}))
-        .view()
+    assert!(fund(amount_per_drop)
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&worker.network)
         .await?
-        .json::<NearToken>()?;
+        .into_full()
+        .expect("final transaction outcome")
+        .is_success());
+
+    let balance_before_second = near_api::Contract(ft_contract.id().clone())
+        .call_function("ft_balance_of", json!({"account_id": creator.id()}))
+        .read_only::<NearToken>()
+        .fetch_from(&ft_contract.network)
+        .await?
+        .data;
 
     // Second funding of the same, already-funded drop.
-    assert!(fund(amount_per_drop).transact().await?.is_success());
-
-    let balance_after_second = ft_contract
-        .call("ft_balance_of")
-        .args_json(json!({"account_id": creator.id()}))
-        .view()
+    assert!(fund(amount_per_drop)
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&worker.network)
         .await?
-        .json::<NearToken>()?;
+        .into_full()
+        .expect("final transaction outcome")
+        .is_success());
+
+    let balance_after_second = near_api::Contract(ft_contract.id().clone())
+        .call_function("ft_balance_of", json!({"account_id": creator.id()}))
+        .read_only::<NearToken>()
+        .fetch_from(&ft_contract.network)
+        .await?
+        .data;
 
     assert_eq!(
         balance_before_second, balance_after_second,
@@ -354,62 +427,71 @@ async fn ft_on_transfer_refunds_already_funded_drop() -> anyhow::Result<()> {
 // by approving it with their own token id. Only the funder's approval counts.
 #[tokio::test]
 async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, creator, _alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
     let (nft_contract, _creator_token) = init_nft_contract(&worker, &creator).await?;
 
     // Attacker owns a different token on the same NFT contract.
     let mallory = root
-        .create_subaccount("mallory")
-        .initial_balance(NearToken::from_near(5))
-        .transact()
-        .await?
-        .unwrap();
+        .create_subaccount("mallory", NearToken::from_near(5))
+        .await?;
     let mallory_token = "666";
     // Only the NFT contract owner (creator) can mint, so mint it for mallory.
-    let mint = creator
-        .call(nft_contract.id(), "nft_mint")
-        .args_json(json!({
-            "token_id": mallory_token,
-            "token_owner_id": mallory.id(),
-            "token_metadata": {"title": "evil", "copies": 1},
-        }))
+    let mint = near_api::Contract(nft_contract.id().clone())
+        .call_function(
+            "nft_mint",
+            json!({
+                "token_id": mallory_token,
+                "token_owner_id": mallory.id(),
+                "token_metadata": {"title": "evil", "copies": 1},
+            }),
+        )
+        .transaction()
         .deposit(NearToken::from_yoctonear(6_580_000_000_000_000_000_000))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(mint.is_success(), "mint failed: {:?}", mint.failures());
 
     // Creator opens a drop (not yet funded).
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
-    let create = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"NFT": {"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}}}))
+    let secret_key = near_api::signer::generate_secret_key().expect("generate test key");
+    let create = near_api::Contract(contract.id().clone()).call_function("create_drop", json!({"drop": {"NFT": {"public_key": secret_key.public_key(), "nft_contract": nft_contract.id()}}})).transaction()
         .deposit(NearToken::from_millinear(407))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?.into_full().expect("final transaction outcome");
     let drop_id: u32 = create.json().unwrap();
 
     // Mallory tries to bind her token to the creator's drop.
-    let _ = mallory
-        .call(nft_contract.id(), "nft_approve")
-        .args_json(json!({
-            "token_id": mallory_token,
-            "account_id": contract.id(),
-            "msg": drop_id.to_string(),
-        }))
+    let _ = near_api::Contract(nft_contract.id().clone())
+        .call_function(
+            "nft_approve",
+            json!({
+                "token_id": mallory_token,
+                "account_id": contract.id(),
+                "msg": drop_id.to_string(),
+            }),
+        )
+        .transaction()
         .deposit(NearToken::from_yoctonear(450_000_000_000_000_000_000))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
-
-    let drop = contract
-        .view(contract.id(), "get_drop_by_id")
-        .args_json(json!({"drop_id": drop_id}))
+        .with_signer(mallory.id().clone(), mallory.signer.clone())
+        .send_to(&mallory.network)
         .await?
-        .json::<serde_json::Value>()?;
+        .into_full()
+        .expect("final transaction outcome");
+
+    let drop = near_api::Contract(contract.id().clone())
+        .call_function("get_drop_by_id", json!({"drop_id": drop_id}))
+        .read_only::<serde_json::Value>()
+        .fetch_from(&contract.network)
+        .await?
+        .data;
 
     assert_ne!(
         drop["NFT"]["token_id"], mallory_token,
@@ -424,7 +506,7 @@ async fn nft_on_approve_rejects_non_funder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn ft_claim_with_fixed_registration_budget_refunds_storage() -> anyhow::Result<()> {
     for registered in [false, true] {
-        let worker = near_workspaces::sandbox().await?;
+        let worker = crate::init::sandbox().await?;
         let root = worker.root_account().unwrap();
         let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
         let ft_contract = init_ft_contract(&worker, &creator).await?;
@@ -432,45 +514,62 @@ async fn ft_claim_with_fixed_registration_budget_refunds_storage() -> anyhow::Re
         let (_drop_id, secret_key) =
             create_and_fund_ft_drop(&contract, &creator, &ft_contract).await?;
 
-        let cost: NearToken = contract
-            .view(contract.id(), "get_drop_cost")
-            .args_json(json!({"funder": creator.id(), "drop": {"FT": {
+        let cost: NearToken = near_api::Contract(contract.id().clone())
+            .call_function(
+                "get_drop_cost",
+                json!({"funder": creator.id(), "drop": {"FT": {
 
-                "public_keys": [secret_key.public_key()],
-                "ft_contract": ft_contract.id(),
-                "amount_per_drop": NearToken::from_yoctonear(1),
-            }}}))
+                    "public_keys": [secret_key.public_key()],
+                    "ft_contract": ft_contract.id(),
+                    "amount_per_drop": NearToken::from_yoctonear(1),
+                }}}),
+            )
+            .read_only::<_>()
+            .fetch_from(&contract.network)
             .await?
-            .json()?;
+            .data;
         if registered {
-            creator
-                .call(ft_contract.id(), "storage_deposit")
-                .args_json(json!({"account_id": alice.id()}))
+            near_api::Contract(ft_contract.id().clone())
+                .call_function("storage_deposit", json!({"account_id": alice.id()}))
+                .transaction()
                 .deposit(NearToken::from_millinear(20))
                 .gas(ONE_HUNDRED_TGAS)
-                .transact()
+                .with_signer(creator.id().clone(), creator.signer.clone())
+                .send_to(&creator.network)
                 .await?
+                .into_full()
+                .expect("final transaction outcome")
                 .into_result()?;
         }
         // Settle gas refunds from creation/funding before measuring the claim refund.
         worker.fast_forward(10).await?;
-        let funder_before = creator.view_account().await?.balance;
+        let funder_before = near_api::Account(creator.id().clone())
+            .view()
+            .fetch_from(&creator.network)
+            .await?
+            .data
+            .amount;
 
         let claimer = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
-        let claim = claimer
-            .call(contract.id(), "claim_for")
-            .args_json(json!({"account_id": alice.id()}))
+        let claim = near_api::Contract(contract.id().clone())
+            .call_function("claim_for", json!({"account_id": alice.id()}))
+            .transaction()
             .gas(CLAIM_GAS)
-            .transact()
-            .await?;
+            .with_signer(claimer.id().clone(), claimer.signer.clone())
+            .send_to(&claimer.network)
+            .await?
+            .into_full()
+            .expect("final transaction outcome");
         assert!(claim.is_success(), "claim failed: {claim:#?}");
         assert!(claim.receipt_failures().is_empty(), "{claim:?}");
         assert!(claim.json::<bool>()?);
 
-        let refunded = creator
-            .view_account()
+        let refunded = near_api::Account(creator.id().clone())
+            .view()
+            .fetch_from(&creator.network)
             .await?
-            .balance
+            .data
+            .amount
             .saturating_sub(funder_before);
 
         assert_eq!(
@@ -483,11 +582,12 @@ async fn ft_claim_with_fixed_registration_budget_refunds_storage() -> anyhow::Re
                 }),
             "registration refunded exactly when skipped (registered={registered})"
         );
-        let recipient_balance: String = ft_contract
-            .view("ft_balance_of")
-            .args_json(json!({"account_id": alice.id()}))
+        let recipient_balance: String = near_api::Contract(ft_contract.id().clone())
+            .call_function("ft_balance_of", json!({"account_id": alice.id()}))
+            .read_only::<_>()
+            .fetch_from(&ft_contract.network)
             .await?
-            .json()?;
+            .data;
         assert_eq!(
             recipient_balance, "1",
             "claim must register and pay the recipient"
@@ -501,7 +601,7 @@ async fn ft_claim_with_fixed_registration_budget_refunds_storage() -> anyhow::Re
 #[tokio::test]
 async fn ft_claim_failure_refunds_registration_to_funder() -> anyhow::Result<()> {
     for registered in [false, true] {
-        let worker = near_workspaces::sandbox().await?;
+        let worker = crate::init::sandbox().await?;
         let root = worker.root_account().unwrap();
         let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
         // This FT's ft_transfer always panics, so the claim hits its failure branch.
@@ -510,37 +610,52 @@ async fn ft_claim_failure_refunds_registration_to_funder() -> anyhow::Result<()>
         let (_drop_id, secret_key) =
             create_and_fund_ft_drop(&contract, &creator, &ft_contract).await?;
 
-        let cost: NearToken = contract
-            .view(contract.id(), "get_drop_cost")
-            .args_json(json!({"funder": creator.id(), "drop": {"FT": {
+        let cost: NearToken = near_api::Contract(contract.id().clone())
+            .call_function(
+                "get_drop_cost",
+                json!({"funder": creator.id(), "drop": {"FT": {
 
-                "public_keys": [secret_key.public_key()],
-                "ft_contract": ft_contract.id(),
-                "amount_per_drop": NearToken::from_yoctonear(1),
-            }}}))
+                    "public_keys": [secret_key.public_key()],
+                    "ft_contract": ft_contract.id(),
+                    "amount_per_drop": NearToken::from_yoctonear(1),
+                }}}),
+            )
+            .read_only::<_>()
+            .fetch_from(&contract.network)
             .await?
-            .json()?;
+            .data;
         if registered {
-            creator
-                .call(ft_contract.id(), "storage_deposit")
-                .args_json(json!({"account_id": alice.id()}))
+            near_api::Contract(ft_contract.id().clone())
+                .call_function("storage_deposit", json!({"account_id": alice.id()}))
+                .transaction()
                 .deposit(NearToken::from_millinear(20))
                 .gas(ONE_HUNDRED_TGAS)
-                .transact()
+                .with_signer(creator.id().clone(), creator.signer.clone())
+                .send_to(&creator.network)
                 .await?
+                .into_full()
+                .expect("final transaction outcome")
                 .into_result()?;
         }
         // Settle gas refunds from creation/funding before measuring the claim refund.
         worker.fast_forward(10).await?;
-        let funder_before = creator.view_account().await?.balance;
+        let funder_before = near_api::Account(creator.id().clone())
+            .view()
+            .fetch_from(&creator.network)
+            .await?
+            .data
+            .amount;
 
         let claimer = Account::from_secret_key(contract.id().clone(), secret_key, &worker);
-        let claim = claimer
-            .call(contract.id(), "claim_for")
-            .args_json(json!({"account_id": alice.id()}))
+        let claim = near_api::Contract(contract.id().clone())
+            .call_function("claim_for", json!({"account_id": alice.id()}))
+            .transaction()
             .gas(CLAIM_GAS)
-            .transact()
-            .await?;
+            .with_signer(claimer.id().clone(), claimer.signer.clone())
+            .send_to(&claimer.network)
+            .await?
+            .into_full()
+            .expect("final transaction outcome");
 
         // ft_transfer panics -> the claim batch fails, but resolve_ft_claim handles it.
         assert!(
@@ -549,10 +664,12 @@ async fn ft_claim_failure_refunds_registration_to_funder() -> anyhow::Result<()>
         );
         assert!(!claim.json::<bool>()?);
 
-        let refunded = creator
-            .view_account()
+        let refunded = near_api::Account(creator.id().clone())
+            .view()
+            .fetch_from(&creator.network)
             .await?
-            .balance
+            .data
+            .amount
             .saturating_sub(funder_before);
 
         // Return the fixed registration budget along with freed storage.

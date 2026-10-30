@@ -1,13 +1,12 @@
+use crate::init::TestAccount as Account;
 use near_sdk::{serde_json::json, NearToken};
-use near_workspaces::types::{KeyType, SecretKey};
-use near_workspaces::Account;
 
 use crate::init::init;
 use crate::utils::{get_user_balance, CLAIM_GAS, INITIAL_CONTRACT_BALANCE, ONE_HUNDRED_TGAS};
 
 #[tokio::test]
 async fn drop_on_existing_account() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
 
     let (contract, creator, alice) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
@@ -20,35 +19,37 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     let amount_per_drop = NearToken::from_near(1);
 
     // Create a random secret keys
-    let secret_key_1 = SecretKey::from_random(KeyType::ED25519);
-    let secret_key_2 = SecretKey::from_random(KeyType::ED25519);
+    let secret_key_1 = near_api::signer::generate_secret_key().expect("generate test key");
+    let secret_key_2 = near_api::signer::generate_secret_key().expect("generate test key");
 
     // Creator initiates a call to create a NEAR drop
-    let create_drop_result_1 = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"NEAR": {"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}}}))
+    let create_drop_result_1 = near_api::Contract(contract.id().clone()).call_function("create_drop", json!({"drop": {"NEAR": {"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}}})).transaction()
         .deposit(NearToken::from_millinear(2210))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?.into_full().expect("final transaction outcome");
     let drop_id: serde_json::Value = create_drop_result_1.json().unwrap();
     assert_eq!(drop_id, 0);
 
     // Shouldn't create a drop with the same keys
-    let create_drop_result_2 = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": {"NEAR": {"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}}}))
+    let create_drop_result_2 = near_api::Contract(contract.id().clone()).call_function("create_drop", json!({"drop": {"NEAR": {"public_keys": vec![secret_key_1.public_key(), secret_key_2.public_key()], "amount_per_drop": amount_per_drop}}})).transaction()
         .deposit(NearToken::from_millinear(2210))
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?.into_full().expect("final transaction outcome");
     assert!(create_drop_result_2.is_failure());
 
-    let get_drop_result_1: near_workspaces::result::ExecutionFinalResult = creator
-        .call(contract.id(), "get_drop_by_id")
-        .args_json(json!({"drop_id": drop_id}))
-        .transact()
-        .await?;
+    let get_drop_result_1: near_api::types::transaction::result::ExecutionFinalResult =
+        near_api::Contract(contract.id().clone())
+            .call_function("get_drop_by_id", json!({"drop_id": drop_id}))
+            .transaction()
+            .with_signer(creator.id().clone(), creator.signer.clone())
+            .send_to(&creator.network)
+            .await?
+            .into_full()
+            .expect("final transaction outcome");
     assert!(get_drop_result_1.is_success());
 
     // instantiate a new version of the contract, using the secret key
@@ -56,12 +57,16 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         Account::from_secret_key(contract.id().clone(), secret_key_1.clone(), &worker);
 
     // Contract calls the "claim_for" function to claim the drop for Alice's account
-    let claim_result_1: near_workspaces::result::ExecutionFinalResult = claimer_1
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": alice.id()}))
-        .gas(CLAIM_GAS)
-        .transact()
-        .await?;
+    let claim_result_1: near_api::types::transaction::result::ExecutionFinalResult =
+        near_api::Contract(contract.id().clone())
+            .call_function("claim_for", json!({"account_id": alice.id()}))
+            .transaction()
+            .gas(CLAIM_GAS)
+            .with_signer(claimer_1.id().clone(), claimer_1.signer.clone())
+            .send_to(&claimer_1.network)
+            .await?
+            .into_full()
+            .expect("final transaction outcome");
     assert!(claim_result_1.is_success());
     assert!(claim_result_1.json::<bool>()?);
 
@@ -79,12 +84,15 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
         Account::from_secret_key(contract.id().clone(), secret_key_2.clone(), &worker);
 
     // Claim the drop again
-    let claim_result_2 = claimer_2
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": alice.id()}))
+    let claim_result_2 = near_api::Contract(contract.id().clone())
+        .call_function("claim_for", json!({"account_id": alice.id()}))
+        .transaction()
         .gas(CLAIM_GAS)
-        .transact()
-        .await?;
+        .with_signer(claimer_2.id().clone(), claimer_2.signer.clone())
+        .send_to(&claimer_2.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(claim_result_2.is_success());
     assert!(claim_result_2.json::<bool>()?);
 
@@ -104,20 +112,24 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
     // assert_eq!(contract_balance_after, contract_balance_before, "hmmmmmm");
 
     // Try to claim the drop again with the same key and check it fails
-    let claim_result_3 = claimer_1
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": alice.id()}))
+    let claim_result_3 = near_api::Contract(contract.id().clone())
+        .call_function("claim_for", json!({"account_id": alice.id()}))
+        .transaction()
         .gas(CLAIM_GAS)
-        .transact()
+        .with_signer(claimer_1.id().clone(), claimer_1.signer.clone())
+        .send_to(&claimer_1.network)
         .await;
     // The key was deleted on claim, so re-signing with it is rejected at broadcast.
     assert!(claim_result_3.is_err());
 
-    let get_drop_result_2 = creator
-        .call(contract.id(), "get_drop_by_id")
-        .args_json(json!({"drop_id": drop_id}))
-        .transact()
-        .await?;
+    let get_drop_result_2 = near_api::Contract(contract.id().clone())
+        .call_function("get_drop_by_id", json!({"drop_id": drop_id}))
+        .transaction()
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(get_drop_result_2.is_failure());
 
     Ok(())
@@ -125,44 +137,59 @@ async fn drop_on_existing_account() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn failed_near_transfer_returns_false_and_consumes_key() -> anyhow::Result<()> {
-    let worker = near_workspaces::sandbox().await?;
+    let worker = crate::init::sandbox().await?;
     let root = worker.root_account().unwrap();
     let (contract, creator, _) = init(&root, INITIAL_CONTRACT_BALANCE).await?;
-    let secret_key = SecretKey::from_random(KeyType::ED25519);
+    let secret_key = near_api::signer::generate_secret_key().expect("generate test key");
     let drop = json!({"NEAR": {
         "public_keys": [secret_key.public_key()],
         "amount_per_drop": NearToken::from_millinear(100),
     }});
-    let cost: NearToken = contract
-        .view(contract.id(), "get_drop_cost")
-        .args_json(json!({"funder": creator.id(), "drop": drop}))
+    let cost: NearToken = near_api::Contract(contract.id().clone())
+        .call_function(
+            "get_drop_cost",
+            json!({"funder": creator.id(), "drop": drop}),
+        )
+        .read_only::<_>()
+        .fetch_from(&contract.network)
         .await?
-        .json()?;
-    let created = creator
-        .call(contract.id(), "create_drop")
-        .args_json(json!({"drop": drop}))
+        .data;
+    let created = near_api::Contract(contract.id().clone())
+        .call_function("create_drop", json!({"drop": drop}))
+        .transaction()
         .deposit(cost)
         .gas(ONE_HUNDRED_TGAS)
-        .transact()
-        .await?;
+        .with_signer(creator.id().clone(), creator.signer.clone())
+        .send_to(&creator.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(created.is_success());
     let drop_id: u32 = created.json()?;
     let claimer = Account::from_secret_key(contract.id().clone(), secret_key.clone(), &worker);
-    let claim = claimer
-        .call(contract.id(), "claim_for")
-        .args_json(json!({"account_id": format!("missing.{}", root.id())}))
+    let claim = near_api::Contract(contract.id().clone())
+        .call_function(
+            "claim_for",
+            json!({"account_id": format!("missing.{}", root.id())}),
+        )
+        .transaction()
         .gas(CLAIM_GAS)
-        .transact()
-        .await?;
+        .with_signer(claimer.id().clone(), claimer.signer.clone())
+        .send_to(&claimer.network)
+        .await?
+        .into_full()
+        .expect("final transaction outcome");
     assert!(!claim.receipt_failures().is_empty());
     assert!(!claim.json::<bool>()?);
-    assert!(contract
-        .view_access_key(&secret_key.public_key())
+    assert!(near_api::Account(contract.id().clone())
+        .access_key(secret_key.public_key().clone())
+        .fetch_from(&contract.network)
         .await
         .is_err());
-    assert!(contract
-        .view(contract.id(), "get_drop_by_id")
-        .args_json(json!({"drop_id": drop_id}))
+    assert!(near_api::Contract(contract.id().clone())
+        .call_function("get_drop_by_id", json!({"drop_id": drop_id}))
+        .read_only::<serde_json::Value>()
+        .fetch_from(&contract.network)
         .await
         .is_err());
     Ok(())
